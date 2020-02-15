@@ -1,6 +1,6 @@
 # PNG.jl
 
-FileIO.jl integration for PNG files
+(work in progress) FileIO.jl integration for PNG files
 
 [![Build Status](https://travis-ci.com/JuliaIO/PNG.jl.svg?branch=master)](https://travis-ci.com/JuliaIO/PNG.jl)
 [![Codecov](https://codecov.io/gh/JuliaIO/PNG.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaIO/PNG.jl)
