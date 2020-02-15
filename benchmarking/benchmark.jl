@@ -1,54 +1,57 @@
+cd(@__DIR__)
 
-# # Setup (run this once first time)
-# using Pkg
-# cd(@__DIR__)
-# !isdir("ImageMagick") && mkdir("ImageMagick")
-# Pkg.activate(joinpath(@__DIR__,"ImageMagick"))
-# Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
-# Pkg.add("ImageMagick")
-#
-# !isdir("QuartzImageIO") && mkdir("QuartzImageIO")
-# Pkg.activate(joinpath(@__DIR__,"QuartzImageIO"))
-# Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
-# Pkg.add("QuartzImageIO")
-#
-# !isdir("PNG") && mkdir("PNG")
-# Pkg.activate(joinpath(@__DIR__,"PNG"))
-# Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
-# Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/PNG.jl"))
+# Setup
+using Pkg
+!isdir("ImageMagick-Test") && mkdir("ImageMagick-Test")
+Pkg.activate(joinpath(@__DIR__,"ImageMagick-Test"))
+Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
+Pkg.add("ImageMagick")
+Pkg.instantiate()
+
+!isdir("QuartzImageIO-Test") && mkdir("QuartzImageIO-Test")
+Pkg.activate(joinpath(@__DIR__,"QuartzImageIO-Test"))
+Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
+Pkg.add("QuartzImageIO")
+Pkg.instantiate()
+
+!isdir("PNG-Test") && mkdir("PNG-Test")
+Pkg.activate(joinpath(@__DIR__,"PNG-Test"))
+Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
+Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/PNG.jl"))
+Pkg.instantiate()
+
+Pkg.activate()
 
 corebench = raw"""
-using BenchmarkTools, ImageCore
-x = rand(Gray{N0f8}, 20000, 4000)
-tfirst = @elapsed begin
-    using FileIO
+    using BenchmarkTools
+    tfirst = @elapsed begin
+        using FileIO
+        FileIO.save("tst.png", x)
+    end
+    rm("tst.png")
+    println("Time to first save (including save): $tfirst seconds")
+
+    print("Save @btime:")
+    @btime FileIO.save("tst.png", x) teardown=(rm("tst.png"))
     FileIO.save("tst.png", x)
+
+    print("Load @btime:")
+    @btime FileIO.load("tst.png")
+    rm("tst.png")
+    println("")
+    """
+
+for imgstr in ["rand(RGB{N0f8}, 500, 500)", "rand(RGB{N0f8}, 20000, 4000)"]
+    setup = """
+    using ImageCore
+    x = $imgstr
+    """
+
+    @info "Testing with $imgstr image -----------------------------"
+
+    for pkgname  in ["ImageMagick", "QuartzImageIO", "PNG"]
+        @info "Testing FileIO with $pkgname (dedicated environment, new instance)"
+        cd(joinpath(@__DIR__,"$pkgname-Test"))
+        run(`julia --project=Project.toml --color=yes -e $(string(setup, corebench))`)
+    end
 end
-println("Time to first save: $tfirst seconds")
-b = @benchmark FileIO.save("tst.png", $(x)) teardown=(rm("tst.png"))
-print("Save @btime:")
-@btime FileIO.save("tst.png", x)
-print("Load @btime:")
-@btime  FileIO.load("tst.png")
-println("")
-"""
-
-@info "Testing with 20000x4000 Gray{N0f8} image"
-
-header = """
-@info "Testing FileIO with ImageMagick -----------------------------------------------------"
-using Pkg; cd(joinpath(@__DIR__,"ImageMagick")); Pkg.activate(".");
-"""
-run(`julia --color=yes -e $(string(header, corebench))`)
-
-header = """
-@info "Testing FileIO with QuartzImageIO ---------------------------------------------------"
-using Pkg; cd(joinpath(@__DIR__,"QuartzImageIO")); Pkg.activate(".");
-"""
-run(`julia --color=yes -e $(string(header, corebench))`)
-
-header = """
-@info "Testing FileIO with PNG -------------------------------------------------------------"
-using Pkg; cd(joinpath(@__DIR__,"PNG")); Pkg.activate(".");
-"""
-run(`julia --color=yes -e $(string(header, corebench))`)
