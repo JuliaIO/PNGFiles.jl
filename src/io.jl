@@ -16,8 +16,8 @@ function map_color(color_type, bit_depth)
     return colors_type
 end
 
-function readimage(filename::String, transforms::Int = 0)
-    fp = open_png(filename)
+function load(f::File{DataFormat{:PNG}}, transforms::Int = 0)
+    fp = open_png(f.filename)
 
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
@@ -130,9 +130,9 @@ function get_image_size(buffer::AbstractArray{T,3}) where T
     height, width
 end
 
-function writeimage(filename::String, image::AbstractArray{T}) where T
+function save(f::File{DataFormat{:PNG}}, image::AbstractArray{T}) where T
 
-    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "wb")
+    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), f.filename, "wb")
     fp == C_NULL && error("Could not open $(filename) for writing")
 
     png_ptr = create_write_struct(png_error_fn, png_warn_fn)
