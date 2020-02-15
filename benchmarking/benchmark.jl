@@ -29,7 +29,7 @@ corebench = raw"""
         FileIO.save("tst.png", x)
     end
     rm("tst.png")
-    println("Time to first save (including save): $tfirst seconds")
+    println("Time to first save (including save): $(round(tfirst, digits=3)) seconds")
 
     print("Save @btime:")
     @btime FileIO.save("tst.png", x) teardown=(rm("tst.png"))
@@ -41,7 +41,7 @@ corebench = raw"""
     println("")
     """
 
-for imgstr in ["rand(RGB{N0f8}, 500, 500)", "rand(RGB{N0f8}, 20000, 4000)"]
+for imgstr in ["rand(RGB{N0f8}, 244, 244)", "rand(RGB{N0f8}, 20000, 4000)"]
     setup = """
     using ImageCore
     x = $imgstr
