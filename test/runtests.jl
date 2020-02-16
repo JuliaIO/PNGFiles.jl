@@ -129,8 +129,11 @@ edge_case_imgs = [
             @testset "compare" begin
                 @test all(expected .≈ read_in)
             end
-            @testset "ImageMagick read compare" begin
-                global read_in_immag = ImageMagick.load(f)
+            global read_in_immag = ImageMagick.load(f)
+            @testset "$(case): ImageMagick read type equality" begin
+                @test eltype(read_in_immag) == eltype(read_in)
+            end
+            @testset "$(case): ImageMagick read values equality" begin
                 @test all(read_in .≈ read_in_immag)
             end
         end
@@ -160,8 +163,11 @@ edge_case_imgs = [
             @testset "compare" begin
                 @test all(read_in .== func_in(image))
             end
-            @testset "ImageMagick read compare" begin
-                global read_in_immag = ImageMagick.load(f)
+            global read_in_immag = ImageMagick.load(f)
+            @testset "$(case): ImageMagick read type equality" begin
+                @test eltype(read_in_immag) == eltype(read_in)
+            end
+            @testset "$(case): ImageMagick read values equality" begin
                 @test all(read_in .≈ read_in_immag)
             end
         end
@@ -179,10 +185,10 @@ edge_case_imgs = [
                 @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
 
                 global read_in_immag = ImageMagick.load(f)
-                @testset "$(case): ImageMagick read type compare" begin
+                @testset "$(case): ImageMagick read type equality" begin
                     @test eltype(read_in_immag) == eltype(read_in)
                 end
-                @testset "$(case): ImageMagick read equality" begin
+                @testset "$(case): ImageMagick read values equality" begin
                     @test all(read_in .≈ read_in_immag)
                 end
             end
