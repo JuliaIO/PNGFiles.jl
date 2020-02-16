@@ -201,7 +201,7 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
     png_write_end(png_ptr, info_ptr)
 end
 
-_prepare_buffer(x::BitArray) where {T<:Colorant{<:Normed}} = _prepare_buffer(collect(x))
+_prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} = reinterpret(Gray{N0f8}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt16} = reinterpret(Gray{N0f16}, x)
