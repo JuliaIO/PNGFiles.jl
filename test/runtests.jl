@@ -2,6 +2,7 @@ using ColorTypes
 using FixedPointNumbers
 using ImageCore
 using Logging
+using Tar
 using Test
 using TestImages
 using Glob
@@ -19,15 +20,11 @@ PNG_SUITE_DIR = "PngSuite"
 PNG_SUITE_PATH = joinpath(PNG_TEST_PATH, PNG_SUITE_DIR)
 PNG_SUITE_FILE = joinpath(PNG_TEST_PATH, "PngSuite.tgz")
 
-try
-    if !isdir(PNG_SUITE_PATH)
-        mkdir(PNG_SUITE_PATH)
-        download("http://www.schaik.com/pngsuite/PngSuite-2017jul19.tgz", PNG_SUITE_FILE)
-        run(`tar xzf $(PNG_SUITE_FILE) -C $(PNG_SUITE_PATH)`)
-        rm(PNG_SUITE_FILE)
-    end
-catch
-    rm(PNG_SUITE_PATH, recursive=true)
+if !isdir(PNG_SUITE_PATH)
+    mkdir(PNG_SUITE_PATH)
+    download("https://github.com/JuliaIO/PNG.jl/releases/download/PngSuite-2017jul19/PngSuite-2017jul19.tar.gz", PNG_SUITE_FILE)
+    Tar.extract(PNG_SUITE_FILE, PNG_SUITE_PATH)
+    rm(PNG_SUITE_FILE)
 end
 
 
@@ -115,17 +112,17 @@ edge_case_imgs = [
     ("ARGBN0f16", identity, rand(ARGB{N0f16}, 127, 257)),
 ]
 
-@testset "libpng" begin
+@testset "PNG" begin
     for (case, image) in vcat(synth_imgs, real_imgs)
         @debug case
         @testset "$(case)" begin
             expected = collect(_prepare_buffer(image))
-            filename = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
+            f = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
             @testset "write" begin
-                @test save(filename, image) == 0
+                @test save(f, image) == 0
             end
             @testset "read" begin
-                global read_in = load(filename)
+                global read_in = load(f)
                 @test read_in isa Matrix
             end
             @testset "compare" begin
@@ -147,12 +144,12 @@ edge_case_imgs = [
     for (case, func_in, image) in edge_case_imgs
         @debug case
         @testset "$(case)" begin
-            filename = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
+            f = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
             @testset "write" begin
-                @test save(filename, image) == 0
+                @test save(f, image) == 0
             end
             @testset "read" begin
-                global read_in = load(filename)
+                global read_in = load(f)
                 @test read_in isa Matrix
             end
             @testset "compare" begin
@@ -161,30 +158,29 @@ edge_case_imgs = [
         end
     end
 
-    if isdir(PNG_SUITE_PATH)
-        @testset "PngSuite" begin
-            for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[!x]*[!_new].png"))
-                case = splitpath(test_img_path)[end]
-                @debug case
-                @testset "$(case)" begin
-                    global read_in = load(File{DataFormat{:PNG}}(test_img_path))
-                    @test read_in isa Matrix
-                    path, ext = splitext(test_img_path)
-                    @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
-                end
+    @testset "PngSuite" begin
+        for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[!x]*[!_new].png"))
+            case = splitpath(test_img_path)[end]
+            @debug case
+            @testset "$(case)" begin
+                f = File{DataFormat{:PNG}}(test_img_path)
+                global read_in = load(f)
+                @test read_in isa Matrix
+                path, ext = splitext(test_img_path)
+                @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
             end
-
-
-            ## TODO: Malformed pngs that should error. This throws `signal (6): Aborted` since we
-            ## don't work with `png_jmpbuf` properly.
-            # for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[x]*.png"))
-            #     case = splitpath(test_img_path)[end]
-            #     @debug case
-            #     @testset "$(case)" begin
-            #         @test_throws ErrorException load(test_img_path)
-            #     end
-            # end
         end
+
+
+        ## TODO: Malformed pngs that should error. This throws `signal (6): Aborted` since we
+        ## don't work with `png_jmpbuf` properly.
+        # for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[x]*.png"))
+        #     case = splitpath(test_img_path)[end]
+        #     @debug case
+        #     @testset "$(case)" begin
+        #         @test_throws ErrorException load(test_img_path)
+        #     end
+        # end
     end
 end
 
