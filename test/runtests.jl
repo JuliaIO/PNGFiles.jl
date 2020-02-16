@@ -131,7 +131,7 @@ edge_case_imgs = [
             end
             global read_in_immag = ImageMagick.load(f)
             @testset "$(case): ImageMagick read type equality" begin
-                @test eltype(read_in_immag) == eltype(read_in)
+                @test eltype(read_in) == eltype(read_in_immag) 
             end
             @testset "$(case): ImageMagick read values equality" begin
                 @test all(read_in .≈ read_in_immag)
@@ -165,7 +165,7 @@ edge_case_imgs = [
             end
             global read_in_immag = ImageMagick.load(f)
             @testset "$(case): ImageMagick read type equality" begin
-                @test eltype(read_in_immag) == eltype(read_in)
+                @test eltype(read_in) == eltype(read_in_immag)
             end
             @testset "$(case): ImageMagick read values equality" begin
                 @test all(read_in .≈ read_in_immag)
@@ -186,7 +186,7 @@ edge_case_imgs = [
 
                 global read_in_immag = ImageMagick.load(f)
                 @testset "$(case): ImageMagick read type equality" begin
-                    @test eltype(read_in_immag) == eltype(read_in)
+                    @test eltype(read_in) == eltype(read_in_immag)
                 end
                 @testset "$(case): ImageMagick read values equality" begin
                     @test all(read_in .≈ read_in_immag)
