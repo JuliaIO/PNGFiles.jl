@@ -25,8 +25,9 @@ Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestImages = "5e47fb64-e119-507b-a336-dd2b206d9990"
 
 [targets]
-test = ["Glob", "ImageMagick", "Logging", "Random", "Test", "TestImages"]
+test = ["Glob", "ImageMagick", "Logging", "Random", "Tar", "Test", "TestImages"]
