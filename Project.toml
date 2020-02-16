@@ -1,6 +1,6 @@
 name = "PNG"
 uuid = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
-authors = ["Ian Butterworth"]
+authors = ["Ian Butterworth", "Tomáš Drvoštěp"]
 version = "0.1.0"
 
 [deps]
