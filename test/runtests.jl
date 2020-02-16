@@ -168,7 +168,6 @@ edge_case_imgs = [
                 @test read_in isa Matrix
                 path, ext = splitext(test_img_path)
                 @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
-                end
             end
         end
 
