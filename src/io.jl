@@ -69,7 +69,7 @@ end
 
 function _buffer_color_type(color_type, bit_depth)
     if color_type == PNG_COLOR_TYPE_GRAY
-        colors_type = Gray{bit_depth > 8 ? Normed{UInt16,bit_depth} : Normed{UInt8,bit_depth}}
+        colors_type = Gray{bit_depth > 8 ? Normed{UInt16,Int(bit_depth)} : Normed{UInt8,Int(bit_depth)}}
     elseif color_type == PNG_COLOR_TYPE_PALETTE
         colors_type = RGB{bit_depth == 16 ? N0f16 : N0f8}
     elseif color_type == PNG_COLOR_TYPE_RGB
@@ -77,7 +77,7 @@ function _buffer_color_type(color_type, bit_depth)
     elseif color_type == PNG_COLOR_TYPE_RGB_ALPHA
         colors_type = RGBA{bit_depth == 16 ? N0f16 : N0f8}
     elseif color_type == PNG_COLOR_TYPE_GRAY_ALPHA
-        colors_type = GrayA{bit_depth > 8 ? Normed{UInt16,bit_depth} : Normed{UInt8,bit_depth}}
+        colors_type = GrayA{bit_depth > 8 ? Normed{UInt16,Int(bit_depth)} : Normed{UInt8,Int(bit_depth)}}
     else
         throw(error("Unknown color type: $color_type"))
     end
