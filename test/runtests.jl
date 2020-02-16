@@ -6,7 +6,7 @@ using Tar
 using Test
 using TestImages
 using Glob
-using PNG: _prepare_buffer, load, save
+using PNGFiles: _prepare_buffer, load, save
 using FileIO: DataFormat, File
 
 logger = ConsoleLogger(stdout, Logging.Info)
@@ -112,7 +112,7 @@ edge_case_imgs = [
     ("ARGBN0f16", identity, rand(ARGB{N0f16}, 127, 257)),
 ]
 
-@testset "PNG" begin
+@testset "PNGFiles" begin
     for (case, image) in vcat(synth_imgs, real_imgs)
         @debug case
         @testset "$(case)" begin

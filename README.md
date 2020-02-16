@@ -1,9 +1,9 @@
-# PNG.jl
+# PNGFiles.jl
 
 (work in progress) FileIO.jl integration for PNG files
 
-[![Build Status](https://travis-ci.com/JuliaIO/PNG.jl.svg?branch=master)](https://travis-ci.com/JuliaIO/PNG.jl)
-[![Codecov](https://codecov.io/gh/JuliaIO/PNG.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaIO/PNG.jl)
+[![Build Status](https://travis-ci.com/JuliaIO/PNGFiles.jl.svg?branch=master)](https://travis-ci.com/JuliaIO/PNGFiles.jl)
+[![Codecov](https://codecov.io/gh/JuliaIO/PNGFiles.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaIO/PNGFiles.jl)
 
 
 ## Installation
@@ -11,12 +11,12 @@
 Install with Pkg, just like any other registered Julia package:
 
 ```jl
-pkg> add PNG  # Press ']' to enter te Pkg REPL mode.
+pkg> add PNGFiles  # Press ']' to enter te Pkg REPL mode.
 ```
 
 ## Usage
 
-Use FileIO to save and load PNGs via this package
+Use FileIO to save and load PNGs images via this package
 
 ```jl
 using FileIO

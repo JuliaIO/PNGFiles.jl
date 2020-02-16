@@ -14,10 +14,10 @@ Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
 Pkg.add("QuartzImageIO")
 Pkg.instantiate()
 
-!isdir("PNG-Test") && mkdir("PNG-Test")
-Pkg.activate(joinpath(@__DIR__,"PNG-Test"))
+!isdir("PNGFiles-Test") && mkdir("PNGFiles-Test")
+Pkg.activate(joinpath(@__DIR__,"PNGFiles-Test"))
 Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/FileIO.jl"))
-Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/PNG.jl"))
+Pkg.develop(PackageSpec(path="/Users/ian/Documents/GitHub/PNGFiles.jl"))
 Pkg.instantiate()
 
 Pkg.activate()
@@ -49,7 +49,7 @@ for imgstr in ["rand(RGB{N0f8}, 244, 244)", "rand(RGB{N0f8}, 20000, 4000)"]
 
     @info "Testing with $imgstr image -----------------------------"
 
-    for pkgname  in ["ImageMagick", "QuartzImageIO", "PNG"]
+    for pkgname  in ["ImageMagick", "QuartzImageIO", "PNGFiles"]
         @info "Testing FileIO with $pkgname (dedicated environment, new instance)"
         cd(joinpath(@__DIR__,"$pkgname-Test"))
         run(`julia --project=Project.toml --color=yes -e $(string(setup, corebench))`)
