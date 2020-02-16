@@ -1,7 +1,19 @@
-png_error_handler(::Ptr{Cvoid}, msg::Cstring) = error("Png error: $msg")
-png_warn_handler(::Ptr{Cvoid}, msg::Cstring) = warn("Png warn: $msg")
+png_error_handler(::Ptr{Cvoid}, msg::Cstring) = error("Png error: $(unsafe_string(msg))")
+png_warn_handler(::Ptr{Cvoid}, msg::Cstring) = @warn("Png warn: $(unsafe_string(msg))")
 const png_error_fn = @cfunction(png_error_handler, Cvoid, (Ptr{Cvoid}, Cstring))
 const png_warn_fn = @cfunction(png_warn_handler, Cvoid, (Ptr{Cvoid}, Cstring))
+
+# Compression strategy
+const Z_DEFAULT_STRATEGY = 0
+const Z_FILTERED = 1
+const Z_HUFFMAN_ONLY = 2
+const Z_RLE = 3
+const Z_FIXED = 4
+
+# Compression level
+const Z_NO_COMPRESSION = 0
+const Z_BEST_SPEED = 1
+const Z_BEST_COMPRESSION = 9
 
 # Returns the libpng version string
 function get_libpng_version()
