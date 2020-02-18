@@ -15,7 +15,7 @@ pkg> add PNGFiles  # Press ']' to enter te Pkg REPL mode.
 
 ## Usage
 
-Use FileIO to save and load PNGs images via this package
+Use FileIO to save and load PNG images via this package
 
 ```jl
 using FileIO
