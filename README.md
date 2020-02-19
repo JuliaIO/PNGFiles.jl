@@ -15,7 +15,19 @@ pkg> add PNGFiles  # Press ']' to enter te Pkg REPL mode.
 
 ## Usage
 
-Use FileIO to save and load PNG images via this package
+PNGFiles is not yet integrated into FileIO.
+For now, do this:
+
+```jl
+using FileIO, PNGFiles
+fformat = File{DataFormat{:PNG}}("path/to/img.png")
+
+PNGFiles.save(fformat, rand(Gray, 100, 100))
+PNGFiles.load(fformat)
+```
+
+
+In the future, it will be as simple as:
 
 ```jl
 using FileIO
