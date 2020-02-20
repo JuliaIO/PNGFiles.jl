@@ -7,7 +7,7 @@ using Tar
 using Test
 using TestImages
 using Glob
-using PNGFiles: _prepare_buffer, load, save
+using PNGFiles
 
 logger = ConsoleLogger(stdout, Logging.Info)
 global_logger(logger)
@@ -131,19 +131,19 @@ edge_case_imgs = [
     for (case, image) in vcat(synth_imgs, real_imgs)
         @info case
         @testset "$(case)" begin
-            expected = collect(_prepare_buffer(image))
-            f = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
+            expected = collect(PNGFiles._prepare_buffer(image))
+            fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
-                @test save(f, image) == 0
+                @test PNGFiles.save(fpath, image) == 0
             end
             @testset "read" begin
-                global read_in = load(f)
+                global read_in = PNGFiles.load(fpath)
                 @test read_in isa Matrix
             end
             @testset "compare" begin
                 @test all(expected .≈ read_in)
             end
-            global read_in_immag = _standardize_grayness(ImageMagick.load(f))
+            global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
             @testset "$(case): ImageMagick read type equality" begin
                 # The lena image is Grayscale saved as RGB...
                 @test eltype(_standardize_grayness(read_in)) == eltype(read_in_immag)
@@ -152,10 +152,11 @@ edge_case_imgs = [
                 # The lena image is Grayscale saved as RGB...
                 @test all(_standardize_grayness(read_in) .≈ read_in_immag)
             end
-            path, ext = splitext(f.filename)
-            save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in)
+            path, ext = splitext(fpath)
+            newpath = path * "_new" * ext
+            PNGFiles.save(newpath, read_in)
             @testset "$(case): IO is idempotent" begin
-                @test all(read_in .≈ load(File{DataFormat{:PNG}}(path * "_new" * ext)))
+                @test all(read_in .≈ PNGFiles.load(newpath))
             end
         end
     end
@@ -163,7 +164,7 @@ edge_case_imgs = [
     for (case, exception, image) in invalid_imgs
         @info case
         @testset "$(case) throws" begin
-            @test_throws exception save(
+            @test_throws exception PNGFiles.save(
                 joinpath(PNG_TEST_PATH, "test_img_err_$(case).png"),
                 image
             )
@@ -173,47 +174,49 @@ edge_case_imgs = [
     for (case, func_in, image) in edge_case_imgs
         @info case
         @testset "$(case)" begin
-            f = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
+            fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
-                @test save(f, image) == 0
+                @test PNGFiles.save(fpath, image) == 0
             end
             @testset "read" begin
-                global read_in = load(f)
+                global read_in = PNGFiles.load(fpath)
                 @test read_in isa Matrix
             end
             @testset "compare" begin
                 @test all(read_in .== func_in(image))
             end
-            global read_in_immag = _standardize_grayness(ImageMagick.load(f))
+            global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
             @testset "$(case): ImageMagick read type equality" begin
                 @test eltype(read_in) == eltype(read_in_immag)
             end
             @testset "$(case): ImageMagick read values equality" begin
                 @test all(read_in .≈ read_in_immag)
             end
-            path, ext = splitext(f.filename)
-            save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in)
+            path, ext = splitext(fpath)
+            newpath = path * "_new" * ext
+            PNGFiles.save(newpath, read_in)
             @testset "$(case): IO is idempotent" begin
-                @test all(read_in .≈ load(File{DataFormat{:PNG}}(path * "_new" * ext)))
+                @test all(read_in .≈ PNGFiles.load(newpath))
             end
         end
     end
 
     @testset "PngSuite" begin
-        for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[!x]*[!_new].png"))
-            case = splitpath(test_img_path)[end]
+        for fpath in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[!x]*[!_new].png"))
+            case = splitpath(fpath)[end]
             case_info = parse_pngsuite(case)
             @info case case_info
 
             C = case_info.color_type
             b = case_info.bit_depth
             @testset "$(case)" begin
-                global read_in = load(test_img_path)
+                global read_in = PNGFiles.load(fpath)
                 @test read_in isa Matrix
 
-                path, ext = splitext(test_img_path)
-                @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
-                global read_in_immag = _standardize_grayness(ImageMagick.load(f))
+                path, ext = splitext(fpath)
+                newpath = path * "_new" * ext
+                @test PNGFiles.save(newpath, read_in) == 0
+                global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
 
                 @testset "$(case): PngSuite/ImageMagick read type equality" begin
                     if C === _Palleted
@@ -229,18 +232,18 @@ edge_case_imgs = [
                     end
                 end
                 @testset "$(case): IO is idempotent" begin
-                    @test all(read_in .≈ load(File{DataFormat{:PNG}}(path * "_new" * ext)))
+                    @test all(read_in .≈ PNGFiles.load(newpath))
                 end
             end
         end
 
         ## TODO: Malformed pngs that should error. This throws `signal (6): Aborted` since we
         ## don't work with `png_jmpbuf` properly.
-        # for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[x]*.png"))
-        #     case = splitpath(test_img_path)[end]
+        # for fpath in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[x]*.png"))
+        #     case = splitpath(fpath)[end]
         #     @info case
         #     @testset "$(case)" begin
-        #         @test_throws ErrorException load(test_img_path)
+        #         @test_throws ErrorException PNGFiles.load(fpath)
         #     end
         # end
     end
