@@ -7,7 +7,6 @@ using Test
 using TestImages
 using Glob
 using PNGFiles: _prepare_buffer, load, save
-using FileIO: DataFormat, File
 
 logger = ConsoleLogger(stdout, Logging.Info)
 global_logger(logger)
@@ -117,7 +116,7 @@ edge_case_imgs = [
         @debug case
         @testset "$(case)" begin
             expected = collect(_prepare_buffer(image))
-            f = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
+            f = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
                 @test save(f, image) == 0
             end
@@ -135,7 +134,7 @@ edge_case_imgs = [
         @debug case
         @testset "$(case) throws" begin
             @test_throws exception save(
-                File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_err_$(case).png")),
+                joinpath(PNG_TEST_PATH, "test_img_err_$(case).png"),
                 image
             )
         end
@@ -144,7 +143,7 @@ edge_case_imgs = [
     for (case, func_in, image) in edge_case_imgs
         @debug case
         @testset "$(case)" begin
-            f = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
+            f = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
                 @test save(f, image) == 0
             end
@@ -163,11 +162,10 @@ edge_case_imgs = [
             case = splitpath(test_img_path)[end]
             @debug case
             @testset "$(case)" begin
-                f = File{DataFormat{:PNG}}(test_img_path)
-                global read_in = load(f)
+                global read_in = load(test_img_path)
                 @test read_in isa Matrix
                 path, ext = splitext(test_img_path)
-                @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
+                @test save("$(path)_new$(ext)", read_in) == 0
             end
         end
 
