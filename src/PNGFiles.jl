@@ -1,4 +1,4 @@
-module PNG
+module PNGFiles
 # Started as a fork of https://github.com/FugroRoames/LibPNG.jl
 
 using libpng_jll
