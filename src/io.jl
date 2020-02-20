@@ -1,5 +1,6 @@
 """
     load(f::File{DataFormat{:PNG}})
+    load(f::String)
 
 Read a `.png` image from file `f`.
 Returns a matrix.
@@ -66,6 +67,7 @@ function load(f::File{DataFormat{:PNG}})
     close_png(fp)
     return transpose(buffer)
 end
+load(f::String) = load(File{DataFormat{:PNG}}(f))
 
 function _buffer_color_type(color_type, bit_depth)
     if color_type == PNG_COLOR_TYPE_GRAY
@@ -89,6 +91,8 @@ end
 """
     save(f::File{DataFormat{:PNG}}, image::AbstractArray
         [, compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4,])
+    save(f::String, image::AbstractArray
+        [, compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4,])
 
 Writes `image` as a png to file `f`.
 
@@ -111,7 +115,7 @@ function save(
         image::S,
         compression_level::Integer=Z_NO_COMPRESSION,
         compression_strategy::Integer=Z_RLE,
-        filters::Integer=PNG_FILTER_PAETH
+        filters::Integer=Int(PNG_FILTER_PAETH)
     ) where {
         T,
         S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -188,6 +192,18 @@ function save(
 
     png_destroy_write_struct(Ref(png_ptr), Ref(info_ptr))
     close_png(fp)
+end
+function save(
+        f::String,
+        image::S,
+        compression_level::Integer=Z_NO_COMPRESSION,
+        compression_strategy::Integer=Z_RLE,
+        filters::Integer=Int(PNG_FILTER_PAETH)
+    ) where {
+        T,
+        S<:Union{AbstractMatrix,AbstractArray{T,3}}
+    }
+    return save(File{DataFormat{:PNG}}(f), image, compression_level, compression_strategy, filters)
 end
 
 function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T}
