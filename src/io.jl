@@ -11,7 +11,7 @@ otherwise. The number of channels of the source determines the color type of the
     3 channels -> RGB
     4 channels -> RGBA
 """
-function load(f::File{DataFormat{:PNG}})
+function load(f::File{DataFormat{:PNG}}, ignore_gamma::Bool=false)
     fp = open_png(f.filename)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
@@ -21,44 +21,81 @@ function load(f::File{DataFormat{:PNG}})
 
     width = png_get_image_width(png_ptr, info_ptr)
     height = png_get_image_height(png_ptr, info_ptr)
-    color_type = png_get_color_type(png_ptr, info_ptr)
-    bit_depth = png_get_bit_depth(png_ptr, info_ptr)
+    color_type_orig = png_get_color_type(png_ptr, info_ptr)
+    color_type = color_type_orig
+    bit_depth_orig = png_get_bit_depth(png_ptr, info_ptr)
+    bit_depth = bit_depth_orig
     num_channels = png_get_channels(png_ptr, info_ptr)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
+
+    backgroundp = png_color_16p()
+    if png_get_bKGD(png_ptr, info_ptr, Ref(backgroundp)[]) != 0
+        png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
+    end
+
+    if Sys.isapple()
+        screen_gamma = 1.0
+    else
+        screen_gamma = PNG_DEFAULT_sRGB
+    end
+
+    if !ignore_gamma
+        intent = Ref{Cint}(0)
+        if png_get_sRGB(png_ptr, info_ptr, intent) != 0
+            png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+        else
+            image_gamma = Ref{Cdouble}(0.0)
+            if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
+                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+            else
+                image_gamma[] = 1/2.2
+                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+            end
+        end
+    end
+
+    if color_type == PNG_COLOR_TYPE_PALETTE
+        png_set_palette_to_rgb(png_ptr)
+        color_type = PNG_COLOR_TYPE_RGB
+    end
+
+    if color_type == PNG_COLOR_TYPE_GRAY && bit_depth <= 8
+        png_set_expand_gray_1_2_4_to_8(png_ptr)
+        png_set_packing(png_ptr)
+        bit_depth = UInt8(8)
+    end
+
+    if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
+        png_set_tRNS_to_alpha(png_ptr)
+        if color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_RGB
+            color_type |= PNG_COLOR_MASK_ALPHA
+        end
+    end
+
     buffer_eltype = _buffer_color_type(color_type, bit_depth)
+    bit_depth == 16 && png_set_swap(png_ptr)
+    n_passes = png_set_interlace_handling(png_ptr)
+    png_read_update_info(png_ptr, info_ptr)
+    # We transpose to work around libpng expecting row-major arrays
+    buffer = Array{buffer_eltype}(undef, width, height)
 
     @debug(
         "Read PNG info:",
         f.filename,
         height,
         width,
+        color_type_orig,
         color_type,
+        bit_depth_orig,
         bit_depth,
         num_channels,
         interlace_type,
-        buffer_eltype
+        image_gamma[],
+        screen_gamma,
+        n_passes,
+        buffer_eltype,
+        PNG_HEADER_VERSION_STRING
     )
-
-    if (color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_palette_to_rgb(png_ptr)
-    end
-
-    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
-        png_set_expand_gray_1_2_4_to_8(png_ptr)
-        png_set_packing(png_ptr)
-        bit_depth = UInt8(8)
-    end
-
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0)
-        png_set_tRNS_to_alpha(png_ptr)
-    end
-    isodd(num_channels) && png_set_strip_alpha(png_ptr)
-
-    bit_depth == 16 && png_set_swap(png_ptr)
-    png_set_interlace_handling(png_ptr)
-    png_read_update_info(png_ptr, info_ptr)
-    # We transpose to work around libpng expecting row-major arrays
-    buffer = Array{buffer_eltype}(undef, width, height)
 
     png_read_image(png_ptr, map(pointer, eachcol(buffer)))
     png_read_end(png_ptr, info_ptr)
@@ -111,7 +148,8 @@ function save(
         image::S,
         compression_level::Integer=Z_NO_COMPRESSION,
         compression_strategy::Integer=Z_RLE,
-        filters::Integer=PNG_FILTER_PAETH
+        filters::Integer=PNG_FILTER_PAETH,
+        gamma::Union{Float64,Nothing}=nothing,
     ) where {
         T,
         S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -152,6 +190,8 @@ function save(
         bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
     end
 
+    isnothing(gamma) || png_set_gAMA(png_ptr, info_ptr, gamma)
+
     @debug(
         "Write PNG info:",
         f.filename,
@@ -165,6 +205,7 @@ function save(
         filters,
         compression_level,
         compression_strategy,
+        gamma,
         typeof(image)
     )
 
