@@ -28,11 +28,26 @@ if !isdir(PNG_SUITE_PATH)
     rm(PNG_SUITE_FILE)
 end
 
-
 _convert(C, T, xs::AbstractArray) =
     collect(colorview(C, map(i -> collect(reinterpret(T, collect(xs)[:, :, i])), 1:size(xs, 3))...))
 _convert(C, T, xs::AbstractMatrix) = collect(colorview(C, collect(reinterpret(T, collect(xs)))))
 
+_standardize_grayness(x) = x
+_standardize_grayness(x::AbstractArray{<:Gray{Bool}}) = convert(Array{Gray{N0f8}}, x)
+_standardize_grayness(x::AbstractArray{<:RGB}) = all(red.(x) .≈ green.(x) .≈ blue.(x)) ? Gray.(red.(x)) : x
+_standardize_grayness(x::AbstractArray{<:RGBA}) = all(red.(x) .≈ green.(x) .≈ blue.(x)) ?
+    convert(Array{GrayA}, colorview(GrayA, red.(x), alpha.(x))) :
+    x
+
+struct _Palleted; end
+const pngsuite_colormap = Dict("0g" => Gray, "2c" => RGB, "3p" => _Palleted, "4a" => GrayA, "6a" => RGBA)
+parse_pngsuite(x::AbstractString) = (
+    case=x[1:end-9],
+    is_interlaced=x[end-8]=="i",
+    color_type=pngsuite_colormap[x[end-7:end-6]],
+    bit_depth=parse(Int, x[end-5:end-4])
+)
+parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
 real_imgs = [
     splitext(img_name)[1] => testimage(img_name)
@@ -115,7 +130,7 @@ edge_case_imgs = [
 
 @testset "PNG" begin
     for (case, image) in vcat(synth_imgs, real_imgs)
-        @debug case
+        @info case
         @testset "$(case)" begin
             expected = collect(_prepare_buffer(image))
             f = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
@@ -129,18 +144,25 @@ edge_case_imgs = [
             @testset "compare" begin
                 @test all(expected .≈ read_in)
             end
-            global read_in_immag = ImageMagick.load(f)
+            global read_in_immag = _standardize_grayness(ImageMagick.load(f))
             @testset "$(case): ImageMagick read type equality" begin
-                @test eltype(read_in) == eltype(read_in_immag) 
+                # The lena image is Grayscale saved as RGB...
+                @test eltype(_standardize_grayness(read_in)) == eltype(read_in_immag)
             end
             @testset "$(case): ImageMagick read values equality" begin
-                @test all(read_in .≈ read_in_immag)
+                # The lena image is Grayscale saved as RGB...
+                @test all(_standardize_grayness(read_in) .≈ read_in_immag)
+            end
+            path, ext = splitext(f.filename)
+            save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in)
+            @testset "$(case): IO is idempotent" begin
+                @test all(read_in .≈ load(File{DataFormat{:PNG}}(path * "_new" * ext)))
             end
         end
     end
 
     for (case, exception, image) in invalid_imgs
-        @debug case
+        @info case
         @testset "$(case) throws" begin
             @test_throws exception save(
                 File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_err_$(case).png")),
@@ -150,7 +172,7 @@ edge_case_imgs = [
     end
 
     for (case, func_in, image) in edge_case_imgs
-        @debug case
+        @info case
         @testset "$(case)" begin
             f = File{DataFormat{:PNG}}(joinpath(PNG_TEST_PATH, "test_img_$(case).png"))
             @testset "write" begin
@@ -163,12 +185,17 @@ edge_case_imgs = [
             @testset "compare" begin
                 @test all(read_in .== func_in(image))
             end
-            global read_in_immag = ImageMagick.load(f)
+            global read_in_immag = _standardize_grayness(ImageMagick.load(f))
             @testset "$(case): ImageMagick read type equality" begin
                 @test eltype(read_in) == eltype(read_in_immag)
             end
             @testset "$(case): ImageMagick read values equality" begin
                 @test all(read_in .≈ read_in_immag)
+            end
+            path, ext = splitext(f.filename)
+            save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in)
+            @testset "$(case): IO is idempotent" begin
+                @test all(read_in .≈ load(File{DataFormat{:PNG}}(path * "_new" * ext)))
             end
         end
     end
@@ -176,37 +203,50 @@ edge_case_imgs = [
     @testset "PngSuite" begin
         for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[!x]*[!_new].png"))
             case = splitpath(test_img_path)[end]
-            @debug case
+            case_info = parse_pngsuite(case)
+            @info case case_info
+
+            C = case_info.color_type
+            b = case_info.bit_depth
             @testset "$(case)" begin
                 f = File{DataFormat{:PNG}}(test_img_path)
                 global read_in = load(f)
                 @test read_in isa Matrix
+
                 path, ext = splitext(test_img_path)
                 @test save(File{DataFormat{:PNG}}(path * "_new" * ext), read_in) == 0
+                global read_in_immag = _standardize_grayness(ImageMagick.load(f))
 
-                global read_in_immag = ImageMagick.load(f)
-                @testset "$(case): ImageMagick read type equality" begin
-                    @test eltype(read_in) == eltype(read_in_immag)
+                @testset "$(case): PngSuite/ImageMagick read type equality" begin
+                    if C === _Palleted
+                        # _Palleted images could have an alpha channel, but its not evident from "case"
+                        @test eltype(read_in) == eltype(read_in_immag)
+                    else
+                        @test eltype(read_in) == C{b > 8 ? Normed{UInt16,16} : Normed{UInt8,8}}
+                    end
                 end
-                @testset "$(case): ImageMagick read values equality" begin
-                    @test all(read_in .≈ read_in_immag)
+                if b >= 8 # ImageMagick.jl does not read in sub 8 bit images correctly
+                    @testset "$(case): ImageMagick read values equality" begin
+                        @test all(convert(Array{RGBA}, read_in) .≈ convert(Array{RGBA}, read_in_immag))
+                    end
+                end
+                @testset "$(case): IO is idempotent" begin
+                    @test all(read_in .≈ load(File{DataFormat{:PNG}}(path * "_new" * ext)))
                 end
             end
         end
-
 
         ## TODO: Malformed pngs that should error. This throws `signal (6): Aborted` since we
         ## don't work with `png_jmpbuf` properly.
         # for test_img_path in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[x]*.png"))
         #     case = splitpath(test_img_path)[end]
-        #     @debug case
+        #     @info case
         #     @testset "$(case)" begin
         #         @test_throws ErrorException load(test_img_path)
         #     end
         # end
     end
 end
-
 
 # Cleanup
 isdir(PNG_TEST_PATH) && rm(PNG_TEST_PATH, recursive = true)
