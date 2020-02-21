@@ -35,7 +35,7 @@ function load(f::File{DataFormat{:PNG}}, ignore_gamma::Bool=false)
     end
 
     if Sys.isapple()
-        screen_gamma = 1.0
+        screen_gamma = PNG_GAMMA_MAC_18
     else
         screen_gamma = PNG_DEFAULT_sRGB
     end
