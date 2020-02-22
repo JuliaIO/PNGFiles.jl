@@ -34,11 +34,7 @@ function load(f::File{DataFormat{:PNG}}, ignore_gamma::Bool=false)
         png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
     end
 
-    if Sys.isapple()
-        screen_gamma = PNG_DEFAULT_sRGB
-    else
-        screen_gamma = PNG_DEFAULT_sRGB
-    end
+    screen_gamma = PNG_DEFAULT_sRGB
 
     image_gamma = nothing
     if !ignore_gamma
