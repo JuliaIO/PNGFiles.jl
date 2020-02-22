@@ -208,10 +208,11 @@ edge_case_imgs = [
             @info case case_info
 
             C = case_info.color_type
+            ignore_gamma = (C == Gray) # It seems Imagemagick doesn't apply gamma correction to gray
             b = case_info.bit_depth
             @testset "$(case)" begin
-                global read_in = PNGFiles.load(fpath)
                 @test read_in isa Matrix
+                global read_in_pngf = PNGFiles.load(fpath, ignore_gamma)
 
                 path, ext = splitext(fpath)
                 newpath = path * "_new" * ext
