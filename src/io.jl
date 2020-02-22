@@ -101,7 +101,7 @@ function load(f::File{DataFormat{:PNG}}, ignore_gamma::Bool=false)
     close_png(fp)
     return transpose(buffer)
 end
-load(f::String) = load(File{DataFormat{:PNG}}(f))
+load(f::String, ignore_gamma::Bool=false) = load(File{DataFormat{:PNG}}(f), ignore_gamma)
 
 function _buffer_color_type(color_type, bit_depth)
     if color_type == PNG_COLOR_TYPE_GRAY
