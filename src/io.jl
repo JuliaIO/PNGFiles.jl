@@ -40,6 +40,7 @@ function load(f::File{DataFormat{:PNG}}, ignore_gamma::Bool=false)
         screen_gamma = PNG_DEFAULT_sRGB
     end
 
+    image_gamma = nothing
     if !ignore_gamma
         intent = Ref{Cint}(0)
         if png_get_sRGB(png_ptr, info_ptr, intent) != 0
