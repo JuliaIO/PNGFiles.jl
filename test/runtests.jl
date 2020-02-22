@@ -1,5 +1,3 @@
-using ColorTypes
-using FixedPointNumbers
 using Images: maxabsfinite
 using ImageCore
 using ImageMagick
@@ -224,7 +222,7 @@ edge_case_imgs = [
             ignore_gamma = (C == Gray) # It seems Imagemagick doesn't apply gamma correction to gray
             b = case_info.bit_depth
             @testset "$(case)" begin
-                global read_in_pngf = PNGFiles.load(fpath, ignore_gamma)
+                global read_in_pngf = PNGFiles.load(fpath, ignore_gamma = ignore_gamma)
                 @test read_in_pngf isa Matrix
 
                 path, ext = splitext(fpath)
