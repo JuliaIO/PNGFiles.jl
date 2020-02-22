@@ -61,7 +61,7 @@ function load(f::File{DataFormat{:PNG}}, ignore_gamma::Bool=false)
     end
 
     if color_type == PNG_COLOR_TYPE_GRAY && bit_depth <= 8
-        png_set_expand_gray_1_2_4_to_8(png_ptr)
+        bit_depth < 8 && png_set_expand_gray_1_2_4_to_8(png_ptr)
         png_set_packing(png_ptr)
         bit_depth = UInt8(8)
     end
