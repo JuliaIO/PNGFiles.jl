@@ -1,5 +1,6 @@
 using ColorTypes
 using FixedPointNumbers
+using Images: maxabsfinite
 using ImageCore
 using ImageMagick
 using Logging
@@ -9,7 +10,15 @@ using TestImages
 using Glob
 using PNGFiles
 
-logger = ConsoleLogger(stdout, Logging.Info)
+function imdiff(a, b)
+    a_view = channelview(a)
+    b_view = channelview(b)
+    diffscale = max(maxabsfinite(a_view), maxabsfinite(b_view))
+    d = sum(abs.(a_view - b_view))
+    return d / (length(a) * diffscale)
+end
+
+logger = ConsoleLogger(stdout, Logging.Debug)
 global_logger(logger)
 
 PNG_TEST_PATH = joinpath(@__DIR__, "temp")
@@ -40,12 +49,16 @@ _standardize_grayness(x::AbstractArray{<:RGBA}) = all(red.(x) .≈ green.(x) .�
 
 struct _Palleted; end
 const pngsuite_colormap = Dict("0g" => Gray, "2c" => RGB, "3p" => _Palleted, "4a" => GrayA, "6a" => RGBA)
-parse_pngsuite(x::AbstractString) = (
-    case=x[1:end-9],
-    is_interlaced=x[end-8]=="i",
-    color_type=pngsuite_colormap[x[end-7:end-6]],
-    bit_depth=parse(Int, x[end-5:end-4])
-)
+
+function parse_pngsuite(x::AbstractString)
+    code = splitext(x)[1]
+    return (
+        case=code[1:end-5],
+        is_interlaced=code[end-4]=='i',
+        color_type=pngsuite_colormap[code[end-3:end-2]],
+        bit_depth=parse(Int, code[end-1:end])
+    )
+end
 parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
 real_imgs = [
@@ -137,26 +150,26 @@ edge_case_imgs = [
                 @test PNGFiles.save(fpath, image) == 0
             end
             @testset "read" begin
-                global read_in = PNGFiles.load(fpath)
-                @test read_in isa Matrix
+                global read_in_pngf = PNGFiles.load(fpath)
+                @test read_in_pngf isa Matrix
             end
             @testset "compare" begin
-                @test all(expected .≈ read_in)
+                @test all(expected .≈ read_in_pngf)
             end
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
             @testset "$(case): ImageMagick read type equality" begin
                 # The lena image is Grayscale saved as RGB...
-                @test eltype(_standardize_grayness(read_in)) == eltype(read_in_immag)
+                @test eltype(_standardize_grayness(read_in_pngf)) == eltype(read_in_immag)
             end
             @testset "$(case): ImageMagick read values equality" begin
                 # The lena image is Grayscale saved as RGB...
-                @test all(_standardize_grayness(read_in) .≈ read_in_immag)
+                @test all(_standardize_grayness(read_in_pngf) .≈ read_in_immag)
             end
             path, ext = splitext(fpath)
             newpath = path * "_new" * ext
-            PNGFiles.save(newpath, read_in)
+            PNGFiles.save(newpath, read_in_pngf)
             @testset "$(case): IO is idempotent" begin
-                @test all(read_in .≈ PNGFiles.load(newpath))
+                @test all(read_in_pngf .≈ PNGFiles.load(newpath))
             end
         end
     end
@@ -179,24 +192,24 @@ edge_case_imgs = [
                 @test PNGFiles.save(fpath, image) == 0
             end
             @testset "read" begin
-                global read_in = PNGFiles.load(fpath)
-                @test read_in isa Matrix
+                global read_in_pngf = PNGFiles.load(fpath)
+                @test read_in_pngf isa Matrix
             end
             @testset "compare" begin
-                @test all(read_in .== func_in(image))
+                @test all(read_in_pngf .== func_in(image))
             end
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
             @testset "$(case): ImageMagick read type equality" begin
-                @test eltype(read_in) == eltype(read_in_immag)
+                @test eltype(read_in_pngf) == eltype(read_in_immag)
             end
             @testset "$(case): ImageMagick read values equality" begin
-                @test all(read_in .≈ read_in_immag)
+                @test all(read_in_pngf .≈ read_in_immag)
             end
             path, ext = splitext(fpath)
             newpath = path * "_new" * ext
-            PNGFiles.save(newpath, read_in)
+            PNGFiles.save(newpath, read_in_pngf)
             @testset "$(case): IO is idempotent" begin
-                @test all(read_in .≈ PNGFiles.load(newpath))
+                @test imdiff(read_in_pngf, PNGFiles.load(newpath)) < 0.01
             end
         end
     end
@@ -211,29 +224,30 @@ edge_case_imgs = [
             ignore_gamma = (C == Gray) # It seems Imagemagick doesn't apply gamma correction to gray
             b = case_info.bit_depth
             @testset "$(case)" begin
-                @test read_in isa Matrix
                 global read_in_pngf = PNGFiles.load(fpath, ignore_gamma)
+                @test read_in_pngf isa Matrix
 
                 path, ext = splitext(fpath)
                 newpath = path * "_new" * ext
-                @test PNGFiles.save(newpath, read_in) == 0
+                @test PNGFiles.save(newpath, read_in_pngf) == 0
                 global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
 
                 @testset "$(case): PngSuite/ImageMagick read type equality" begin
                     if C === _Palleted
                         # _Palleted images could have an alpha channel, but its not evident from "case"
-                        @test eltype(read_in) == eltype(read_in_immag)
+                        @test eltype(read_in_pngf) == eltype(read_in_immag)
                     else
-                        @test eltype(read_in) == C{b > 8 ? Normed{UInt16,16} : Normed{UInt8,8}}
+                        basictype = b > 8 ? Normed{UInt16,16} : Normed{UInt8,8}
+                        @test eltype(read_in_pngf) == C{basictype}
                     end
                 end
                 if b >= 8 # ImageMagick.jl does not read in sub 8 bit images correctly
                     @testset "$(case): ImageMagick read values equality" begin
-                        @test all(convert(Array{RGBA}, read_in) .≈ convert(Array{RGBA}, read_in_immag))
+                        @test imdiff(read_in_pngf, read_in_immag) < 0.01
                     end
                 end
                 @testset "$(case): IO is idempotent" begin
-                    @test all(read_in .≈ PNGFiles.load(newpath))
+                    @test all(read_in_pngf .≈ PNGFiles.load(newpath))
                 end
             end
         end
