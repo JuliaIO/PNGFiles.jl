@@ -229,8 +229,14 @@ edge_case_imgs = [
                 newpath = path * "_new" * ext
                 @test PNGFiles.save(newpath, read_in_pngf) == 0
                 global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
-
                 @testset "$(case): PngSuite/ImageMagick read type equality" begin
+                    if case_info.case in ("tbb", "tbg", "tbr")  # transaprency adds an alpha layer
+                        if C === RGB
+                            C = RGBA
+                        elseif C === Gray
+                            C = GrayA
+                        end
+                    end
                     if C === _Palleted
                         # _Palleted images could have an alpha channel, but its not evident from "case"
                         @test eltype(read_in_pngf) == eltype(read_in_immag)
