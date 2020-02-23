@@ -35,7 +35,7 @@ function load(fpath::String; ignore_gamma::Bool=false)
 
     screen_gamma = PNG_DEFAULT_sRGB
 
-    image_gamma = nothing
+    image_gamma = Ref(nothing)
     if !ignore_gamma
         intent = Ref{Cint}(0)
         if png_get_sRGB(png_ptr, info_ptr, intent) != 0
@@ -56,8 +56,8 @@ function load(fpath::String; ignore_gamma::Bool=false)
         color_type = PNG_COLOR_TYPE_RGB
     end
 
-    if color_type == PNG_COLOR_TYPE_GRAY && bit_depth <= 8
-        bit_depth < 8 && png_set_expand_gray_1_2_4_to_8(png_ptr)
+    if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
+        png_set_expand_gray_1_2_4_to_8(png_ptr)
         png_set_packing(png_ptr)
         bit_depth = UInt8(8)
     end
@@ -187,6 +187,8 @@ function save(
         bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
     end
 
+    # this gAMA and cHRM should be added for compatibility with older systems
+    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
     isnothing(gamma) || png_set_gAMA(png_ptr, info_ptr, gamma)
 
     @debug(
