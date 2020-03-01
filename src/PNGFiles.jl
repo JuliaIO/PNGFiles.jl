@@ -12,5 +12,6 @@ include(joinpath(libpng_wrap_dir, "libpng_api.jl"))
 
 include("wraphelpers.jl")
 include("io.jl")
+include("utils.jl")
 
 end # module
