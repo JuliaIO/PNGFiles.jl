@@ -1,5 +1,5 @@
 """
-    load(fpath::String; ignore_gamma::Bool=false)
+    load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
 
 Read a `.png` image from file at `fpath`.
 Returns a matrix.
@@ -11,7 +11,7 @@ otherwise. The number of channels of the source determines the color type of the
     3 channels -> RGB
     4 channels -> RGBA
 """
-function load(fpath::String; ignore_gamma::Bool=false)
+function load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
@@ -29,23 +29,39 @@ function load(fpath::String; ignore_gamma::Bool=false)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
 
     backgroundp = png_color_16p()
-    if png_get_bKGD(png_ptr, info_ptr, Ref(backgroundp)[]) != 0
+    if png_get_bKGD(png_ptr, info_ptr, Ptr{png_color_16p}(backgroundp)) != 0
         png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
     end
 
     screen_gamma = PNG_DEFAULT_sRGB
+    image_gamma = Ref{Cdouble}(0.0)
+    intent = Ref{Cint}(-1)
+    if isnothing(ignore_gamma)
+        # ImageMagick doesn't gamma correct Gray images
+        do_gamma_correction = (color_type & PNG_COLOR_MASK_COLOR) != 0
+    else
+        do_gamma_correction = !ignore_gamma
+    end
 
-    image_gamma = Ref(nothing)
-    if !ignore_gamma
-        intent = Ref{Cint}(0)
-        if png_get_sRGB(png_ptr, info_ptr, intent) != 0
-            png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
-        else
+    if do_gamma_correction
+        if png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) != 0
+            if png_get_sRGB(png_ptr, info_ptr, intent) != 0
+                png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+            else
+                image_gamma = Ref{Cdouble}(0.0)
+                if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
+                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+                else
+                    image_gamma[] = 0.45455f0
+                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+                end
+            end
+        elseif png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) != 0
             image_gamma = Ref{Cdouble}(0.0)
             if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
                 png_set_gamma(png_ptr, screen_gamma, image_gamma[])
             else
-                image_gamma[] = 1/2.2
+                image_gamma[] = 0.45455f0
                 png_set_gamma(png_ptr, screen_gamma, image_gamma[])
             end
         end
@@ -73,6 +89,7 @@ function load(fpath::String; ignore_gamma::Bool=false)
     bit_depth == 16 && png_set_swap(png_ptr)
     n_passes = png_set_interlace_handling(png_ptr)
     png_read_update_info(png_ptr, info_ptr)
+
     # We transpose to work around libpng expecting row-major arrays
     buffer = Array{buffer_eltype}(undef, width, height)
 
@@ -89,6 +106,7 @@ function load(fpath::String; ignore_gamma::Bool=false)
         interlace_type,
         image_gamma[],
         screen_gamma,
+        intent[],
         n_passes,
         buffer_eltype,
         PNG_HEADER_VERSION_STRING
