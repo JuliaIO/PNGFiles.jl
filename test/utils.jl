@@ -1,6 +1,7 @@
 using ImageMagick
 using Images
 using Test
+using PNGFiles: _inspect_png_read, load
 
 onfail(body, x) = error("I might have overlooked something: $x")
 onfail(body, _::Test.Pass) = nothing
@@ -27,55 +28,100 @@ _standardize_grayness(x::AbstractArray{<:RGBA}) = all(red.(x) .â‰ˆ green.(x) .â‰
     convert(Array{GrayA}, colorview(GrayA, red.(x), alpha.(x))) :
     x
 
-function _plotdiffs(p, i)
-    border = fill(Gray(0), 2, size(p, 2))
-    vcat(border,
-         Gray.(absdiff.(red.(i), red.(p))),
-         border,
-         Gray.(absdiff.(green.(i), green.(p))),
-         border,
-         Gray.(absdiff.(blue.(i), blue.(p))))
-end
-
-function _plotdiffs(p::AbstractArray{<:GrayA}, i::AbstractArray{<:GrayA})
-    border = fill(Gray(0), 2, size(p, 2))
-    vcat(border,
-         Gray.(absdiff.(gray.(i), gray.(p))),
-         border,
-         Gray.(absdiff.(alpha.(i), alpha.(p))))
-end
-
-function _plotdiffs(p::AbstractArray{<:Gray}, i::AbstractArray{<:Gray})
-    vcat(fill(Gray(0), 2, size(p, 2)), Gray.(absdiff.(gray.(i), gray.(p))))
-end
-
-function _plotdiffs(p::AbstractArray{<:RGBA}, i::AbstractArray{<:RGBA})
-    border = fill(Gray(0), 2, size(p, 2))
-    vcat(border,
-         Gray.(absdiff.(red.(i), red.(p))),
-         border,
-         Gray.(absdiff.(green.(i), green.(p))),
-         border,
-         Gray.(absdiff.(blue.(i), blue.(p))),
-         border,
-         Gray.(absdiff.(alpha.(i), alpha.(p))))
-end
 
 function plotdiffs(p, i)
     """
     Returns a Matrix of Colorants with following structure:
-
-    |----------------------|-------------------|
-    |image p               | image i           |
-    |----------------------|-------------------|
-    |scaled diff channel 1 | absdiff channel 1 |
-    |----------------------|-------------------|
-    |scaled diff channel 2 | absdiff channel 2 |
-    |----------------------|-------------------|
+    --------------|---------------|----------------------|---------------------
+    Orig Image p  | Orig Image i  | AbsDiff all channels | RelDiff all channels
+    --------------|---------------|----------------------|---------------------
+    1st channel p | 1st channel i | AbsDiff 1st channel  | RelDiff 1st channel
+    --------------|---------------|----------------------|---------------------
     ...
     """
+    hborder = hcat(
+        fill(RGBA{Float64}(0, 0, 0, 1), size(o, 1) + size(p, 1), 1),
+        fill(RGBA{Float64}(1, 1, 1, 1), size(o, 1) + size(p, 1), 1),
+        fill(RGBA{Float64}(0, 0, 0, 1), size(o, 1) + size(p, 1), 1),
+    )
+    _p = convert.(RGBA{Float64}, p)
+    __p = collect(channelview(_p))
+    __p[4, :, :] .= 0.0
+    _i = convert.(RGBA{Float64}, i)
+    __i = collect(channelview(_i))
+    __i[4, :, :] .= 1.0 # make the difference in alpha be 1 so it is visible
+    d = collect(colorview(RGBA{Float64}, absdiff.(__p, __i)))
     o = _plotdiffs(p, i)
-    m = maximum(o)
-    border = fill(Gray(0), size(o, 1) + size(p, 1), 2)
-    collect(hcat(vcat(p, Gray.(o ./ (m == 0 ? 1.0 : m))), border, vcat(i, o)))
+
+    collect(hcat(
+        vcat(_p, _plotchannels(p)),
+        hborder,
+        vcat(_i, _plotchannels(i)),
+        hborder,
+        vcat(d, o),
+        hborder,
+        vcat(_rescale(d), _rescale(o)),
+    ))
+end
+
+vboarder(p) = vcat(
+    fill(RGBA{Float64}(0, 0, 0, 1), 1, size(p, 2)),
+    fill(RGBA{Float64}(1, 1, 1, 1), 1, size(p, 2)),
+    fill(RGBA{Float64}(0, 0, 0, 1), 1, size(p, 2)),
+)
+
+function _plotdiffs(p, i)
+    vcat(
+        vborder(p),
+        RGBA{Float64}.(absdiff.(red.(i), red.(p)), 0, 0, 1),
+        vborder(p),
+        RGBA{Float64}.(0, absdiff.(green.(i), green.(p)), 0, 1),
+        vborder(p),
+        RGBA{Float64}.(0, 0, absdiff.(blue.(i), blue.(p)), 1),
+    )
+end
+
+function _plotdiffs(p::AbstractArray{<:RGBA}, i::AbstractArray{<:RGBA})
+    a = absdiff.(alpha.(i), alpha.(p))
+    vcat(
+        vboarder(p),
+        RGBA{Float64}.(absdiff.(red.(i), red.(p)), 0, 0, 1),
+        vboarder(p),
+        RGBA{Float64}.(0, absdiff.(green.(i), green.(p)), 0, 1),
+        vboarder(p),
+        RGBA{Float64}.(0, 0, absdiff.(blue.(i), blue.(p)), 1),
+        vboarder(p),
+        RGBA{Float64}.(a, a, a, 1),
+    )
+end
+
+function _plotchannels(p)
+    vcat(
+        vboarder(p),
+        RGBA{Float64}.(red.(p), 0, 0, 1),
+        vboarder(p),
+        RGBA{Float64}.(0, green.(p), 0, 1),
+        vboarder(p),
+        RGBA{Float64}.(0, 0, blue.(p), 1),
+    )
+end
+
+function _plotchannels(p::AbstractArray{<:RGBA})
+    vcat(
+        vboarder(p),
+        RGBA{Float64}.(red.(p), 0, 0, 1),
+        vboarder(p),
+        RGBA{Float64}.(0, green.(p), 0, 1),
+        vboarder(p),
+        RGBA{Float64}.(0, 0, blue.(p), 1),
+        vboarder(p),
+        RGBA{Float64}.(alpha.(p), alpha.(p), alpha.(p), 1),
+    )
+end
+
+function _rescale(x::AbstractArray)
+    c = channelview(x)
+    m = maximum(c)
+    m = iszero(m) ? one(m) : m
+    colorview(RGBA{Float64}, c ./ m)
 end

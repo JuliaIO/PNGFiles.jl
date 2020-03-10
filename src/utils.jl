@@ -1,4 +1,4 @@
-function _inspect_png_read(fpath, ignore_gamma=false)
+function _inspect_png_read(fpath, gamma::Union{Nothing,Float64}=nothing)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
@@ -49,36 +49,29 @@ function _inspect_png_read(fpath, ignore_gamma=false)
     green_y = Ref{Cdouble}(0.0)
     blue_x = Ref{Cdouble}(0.0)
     blue_y = Ref{Cdouble}(0.0)
-    if !ignore_gamma
+    if isnothing(gamma)
         if png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) != 0
-            intent = Ref{Cint}(0)
             if png_get_sRGB(png_ptr, info_ptr, intent) != 0
                 png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
             else
-                image_gamma = Ref{Cdouble}(0.0)
                 if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
                     png_set_gamma(png_ptr, screen_gamma, image_gamma[])
                 else
-                    image_gamma[] = 0.45455f0
+                    image_gamma[] = 0.45455
                     png_set_gamma(png_ptr, screen_gamma, image_gamma[])
                 end
             end
-        else
-            if png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) != 0
-                image_gamma = Ref{Cdouble}(0.0)
-                if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
-                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
-                else
-                    image_gamma[] = 0.45455f0
-                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
-                end
-            end
-            if png_get_valid(png_ptr, info_ptr, PNG_INFO_cHRM) != 0
-                if png_get_cHRM(png_ptr, info_ptr, white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y) != 0
-                    png_set_cHRM(png_ptr, info_ptr,  white_x[], white_y[], red_x[], red_y[], green_x[], green_y[], blue_x[], blue_y[])
-                end
+        elseif png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) != 0
+            if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
+                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+            else
+                image_gamma[] = 0.45455
+                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
             end
         end
+    elseif gamma != 1
+        image_gamma[] = gamma
+        png_set_gamma(png_ptr, screen_gamma, image_gamma[])
     end
 
     buffer_eltype = _buffer_color_type(color_type, bit_depth)
@@ -87,7 +80,7 @@ function _inspect_png_read(fpath, ignore_gamma=false)
     png_read_update_info(png_ptr, info_ptr)
     chunk_info(chunk) = png_get_valid(png_ptr, info_ptr, chunk)
 
-    @info(fpath,
+    @show(fpath,
         chunk_info(PNG_INFO_sRGB),
         chunk_info(PNG_INFO_iCCP),
         chunk_info(PNG_INFO_gAMA),

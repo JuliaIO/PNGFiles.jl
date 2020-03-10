@@ -1,7 +1,7 @@
 using TestImages
 
 real_imgs = [
-    splitext(img_name)[1] => testimage(img_name)
+    first(splitext(img_name)) => testimage(img_name)
     for img_name
     in TestImages.remotefiles
     if endswith(img_name, ".png")
