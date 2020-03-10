@@ -1,17 +1,19 @@
 """
-    load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
+    load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
 
-Read a `.png` image from file at `fpath`.
+Read a `.png` image from file at `fpath`. `gamma` can be used to override the automatic gamma
+correction, a value of 1.0 means no gamma correction.
 Returns a matrix.
 
 The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
-otherwise. The number of channels of the source determines the color type of the output:
+otherwise.
+The number of channels (and transparency) of the source determines the color type of the output:
     1 channel  -> Gray
     2 channels -> GrayA
     3 channels -> RGB
     4 channels -> RGBA
 """
-function load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
+function load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
@@ -28,43 +30,38 @@ function load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
     num_channels = png_get_channels(png_ptr, info_ptr)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
 
+    # TODO: verify this is needed
     backgroundp = png_color_16p()
     if png_get_bKGD(png_ptr, info_ptr, Ptr{png_color_16p}(backgroundp)) != 0
         png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
     end
 
     screen_gamma = PNG_DEFAULT_sRGB
-    image_gamma = Ref{Cdouble}(0.0)
+    image_gamma = Ref{Cdouble}(-1.0)
     intent = Ref{Cint}(-1)
-    if isnothing(ignore_gamma)
-        # ImageMagick doesn't gamma correct Gray images
-        do_gamma_correction = (color_type & PNG_COLOR_MASK_COLOR) != 0
-    else
-        do_gamma_correction = !ignore_gamma
-    end
-
-    if do_gamma_correction
+    if isnothing(gamma)
         if png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) != 0
             if png_get_sRGB(png_ptr, info_ptr, intent) != 0
                 png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
             else
-                image_gamma = Ref{Cdouble}(0.0)
                 if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
                     png_set_gamma(png_ptr, screen_gamma, image_gamma[])
                 else
-                    image_gamma[] = 0.45455f0
+                    image_gamma[] = 0.45455
                     png_set_gamma(png_ptr, screen_gamma, image_gamma[])
                 end
             end
         elseif png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) != 0
-            image_gamma = Ref{Cdouble}(0.0)
             if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
                 png_set_gamma(png_ptr, screen_gamma, image_gamma[])
             else
-                image_gamma[] = 0.45455f0
+                image_gamma[] = 0.45455
                 png_set_gamma(png_ptr, screen_gamma, image_gamma[])
             end
         end
+    elseif gamma != 1
+        image_gamma[] = gamma
+        png_set_gamma(png_ptr, screen_gamma, image_gamma[])
     end
 
     if color_type == PNG_COLOR_TYPE_PALETTE
@@ -86,8 +83,8 @@ function load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
     end
 
     buffer_eltype = _buffer_color_type(color_type, bit_depth)
-    bit_depth == 16 && png_set_swap(png_ptr)
     n_passes = png_set_interlace_handling(png_ptr)
+    bit_depth == 16 && png_set_swap(png_ptr)
     png_read_update_info(png_ptr, info_ptr)
 
     # We transpose to work around libpng expecting row-major arrays
@@ -104,6 +101,7 @@ function load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
         bit_depth,
         num_channels,
         interlace_type,
+        gamma,
         image_gamma[],
         screen_gamma,
         intent[],
@@ -120,8 +118,9 @@ function load(fpath::String; ignore_gamma::Union{Nothing,Bool}=nothing)
 end
 
 function _buffer_color_type(color_type, bit_depth)
+    bit_depth = Int(bit_depth)
     if color_type == PNG_COLOR_TYPE_GRAY
-        colors_type = Gray{bit_depth > 8 ? Normed{UInt16,Int(bit_depth)} : Normed{UInt8,Int(bit_depth)}}
+        colors_type = Gray{bit_depth > 8 ? Normed{UInt16,bit_depth} : Normed{UInt8,bit_depth}}
     elseif color_type == PNG_COLOR_TYPE_PALETTE
         colors_type = RGB{bit_depth == 16 ? N0f16 : N0f8}
     elseif color_type == PNG_COLOR_TYPE_RGB
@@ -129,7 +128,7 @@ function _buffer_color_type(color_type, bit_depth)
     elseif color_type == PNG_COLOR_TYPE_RGB_ALPHA
         colors_type = RGBA{bit_depth == 16 ? N0f16 : N0f8}
     elseif color_type == PNG_COLOR_TYPE_GRAY_ALPHA
-        colors_type = GrayA{bit_depth > 8 ? Normed{UInt16,Int(bit_depth)} : Normed{UInt8,Int(bit_depth)}}
+        colors_type = GrayA{bit_depth > 8 ? Normed{UInt16,bit_depth} : Normed{UInt8,bit_depth}}
     else
         throw(error("Unknown color type: $color_type"))
     end
@@ -140,7 +139,7 @@ end
 ### Write ##########################################################################################
 """
     save(fpath::String, image::AbstractArray;
-        compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
+         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
 
 Writes `image` as a png to file at `fpath`.
 
@@ -163,8 +162,7 @@ function save(
         image::S;
         compression_level::Integer=Z_NO_COMPRESSION,
         compression_strategy::Integer=Z_RLE,
-        filters::Integer=Int(PNG_FILTER_PAETH),
-        gamma::Union{Float64,Nothing}=nothing
+        filters::Integer=Int(PNG_FILTER_PAETH)
     ) where {
         T,
         S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -207,7 +205,7 @@ function save(
 
     # this gAMA and cHRM should be added for compatibility with older systems
     png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
-    isnothing(gamma) || png_set_gAMA(png_ptr, info_ptr, gamma)
+
 
     @debug(
         "Write PNG info:",
