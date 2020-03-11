@@ -7,15 +7,15 @@ FileIO.jl integration for PNG files
 
 ## Installation
 
-Install with Pkg, just like any other registered Julia package:
+Installation is recommended via the `ImageIO` thin IO wrapper for `FileIO`:
 
 ```jl
-pkg> add PNGFiles  # Press ']' to enter te Pkg REPL mode.
+pkg> add ImageIO  # Press ']' to enter te Pkg REPL mode.
 ```
 
 ## Usage
 
-Once installed, usage is as simple as:
+Once `ImageIO` is installed, usage is as simple as:
 
 ```jl
 using FileIO
@@ -23,7 +23,7 @@ save("test.png", rand(Gray, 100, 100))
 load("test.png")
 ```
 
-Or direct usage:
+Or direct usage, if `PNGFiles` has been directly installed:
 ```jl
 using PNGFiles
 PNGFiles.save("path/to/img.png", rand(Gray, 100, 100))
