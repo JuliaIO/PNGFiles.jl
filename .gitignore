@@ -5,4 +5,5 @@
 Manifest.toml
 /dev/
 /test/temp
+/test/_debugfile.jl
 *.png

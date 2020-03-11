@@ -1,19 +1,20 @@
 """
-    load(f::File{DataFormat{:PNG}})
-    load(f::String)
+    load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
 
-Read a `.png` image from file `f`.
+Read a `.png` image from file at `fpath`. `gamma` can be used to override the automatic gamma
+correction, a value of 1.0 means no gamma correction.
 Returns a matrix.
 
 The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
-otherwise. The number of channels of the source determines the color type of the output:
+otherwise.
+The number of channels (and transparency) of the source determines the color type of the output:
     1 channel  -> Gray
     2 channels -> GrayA
     3 channels -> RGB
     4 channels -> RGBA
 """
-function load(f::File{DataFormat{:PNG}})
-    fp = open_png(f.filename)
+function load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
+    fp = open_png(fpath)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
     png_init_io(png_ptr, fp)
@@ -22,44 +23,92 @@ function load(f::File{DataFormat{:PNG}})
 
     width = png_get_image_width(png_ptr, info_ptr)
     height = png_get_image_height(png_ptr, info_ptr)
-    color_type = png_get_color_type(png_ptr, info_ptr)
-    bit_depth = png_get_bit_depth(png_ptr, info_ptr)
+    color_type_orig = png_get_color_type(png_ptr, info_ptr)
+    color_type = color_type_orig
+    bit_depth_orig = png_get_bit_depth(png_ptr, info_ptr)
+    bit_depth = bit_depth_orig
     num_channels = png_get_channels(png_ptr, info_ptr)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
-    buffer_eltype = _buffer_color_type(color_type, bit_depth)
 
-    @debug(
-        "Read PNG info:",
-        f.filename,
-        height,
-        width,
-        color_type,
-        bit_depth,
-        num_channels,
-        interlace_type,
-        buffer_eltype
-    )
-
-    if (color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_palette_to_rgb(png_ptr)
+    # TODO: verify this is needed
+    backgroundp = png_color_16p()
+    if png_get_bKGD(png_ptr, info_ptr, Ptr{png_color_16p}(backgroundp)) != 0
+        png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
     end
 
-    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
+    screen_gamma = PNG_DEFAULT_sRGB
+    image_gamma = Ref{Cdouble}(-1.0)
+    intent = Ref{Cint}(-1)
+    if isnothing(gamma)
+        if png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) != 0
+            if png_get_sRGB(png_ptr, info_ptr, intent) != 0
+                png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+            else
+                if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
+                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+                else
+                    image_gamma[] = 0.45455
+                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+                end
+            end
+        elseif png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) != 0
+            if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
+                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+            else
+                image_gamma[] = 0.45455
+                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+            end
+        end
+    elseif gamma != 1
+        image_gamma[] = gamma
+        png_set_gamma(png_ptr, screen_gamma, image_gamma[])
+    end
+
+    if color_type == PNG_COLOR_TYPE_PALETTE
+        png_set_palette_to_rgb(png_ptr)
+        color_type = PNG_COLOR_TYPE_RGB
+    end
+
+    if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
         png_set_expand_gray_1_2_4_to_8(png_ptr)
         png_set_packing(png_ptr)
         bit_depth = UInt8(8)
     end
 
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0)
+    if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
         png_set_tRNS_to_alpha(png_ptr)
+        if color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_RGB
+            color_type |= PNG_COLOR_MASK_ALPHA
+        end
     end
-    isodd(num_channels) && png_set_strip_alpha(png_ptr)
 
+    buffer_eltype = _buffer_color_type(color_type, bit_depth)
+    n_passes = png_set_interlace_handling(png_ptr)
     bit_depth == 16 && png_set_swap(png_ptr)
-    png_set_interlace_handling(png_ptr)
     png_read_update_info(png_ptr, info_ptr)
+
     # We transpose to work around libpng expecting row-major arrays
     buffer = Array{buffer_eltype}(undef, width, height)
+
+    @debug(
+        "Read PNG info:",
+        fpath,
+        height,
+        width,
+        color_type_orig,
+        color_type,
+        bit_depth_orig,
+        bit_depth,
+        num_channels,
+        interlace_type,
+        gamma,
+        image_gamma[],
+        screen_gamma,
+        intent[],
+        n_passes,
+        buffer_eltype,
+        PNG_HEADER_VERSION_STRING
+    )
 
     png_read_image(png_ptr, map(pointer, eachcol(buffer)))
     png_read_end(png_ptr, info_ptr)
@@ -67,9 +116,9 @@ function load(f::File{DataFormat{:PNG}})
     close_png(fp)
     return transpose(buffer)
 end
-load(f::String) = load(File{DataFormat{:PNG}}(f))
 
 function _buffer_color_type(color_type, bit_depth)
+    bit_depth = Int(bit_depth)
     if color_type == PNG_COLOR_TYPE_GRAY
         colors_type = Gray{bit_depth > 8 ? Normed{UInt16,bit_depth} : Normed{UInt8,bit_depth}}
     elseif color_type == PNG_COLOR_TYPE_PALETTE
@@ -89,12 +138,10 @@ end
 
 ### Write ##########################################################################################
 """
-    save(f::File{DataFormat{:PNG}}, image::AbstractArray
-        [, compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4,])
-    save(f::String, image::AbstractArray
-        [, compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4,])
+    save(fpath::String, image::AbstractArray;
+         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
 
-Writes `image` as a png to file `f`.
+Writes `image` as a png to file at `fpath`.
 
 ## Arguments
 `compression_level`: 0 (Z_NO_COMPRESSION), 1 (Z_BEST_SPEED), ..., 9 (Z_BEST_COMPRESSION)
@@ -111,8 +158,8 @@ output:
     4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> PNG_COLOR_TYPE_RGB_ALPHA
 """
 function save(
-        f::File{DataFormat{:PNG}},
-        image::S,
+        fpath,
+        image::S;
         compression_level::Integer=Z_NO_COMPRESSION,
         compression_strategy::Integer=Z_RLE,
         filters::Integer=Int(PNG_FILTER_PAETH)
@@ -125,8 +172,8 @@ function save(
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
 
-    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), f.filename, "wb")
-    fp == C_NULL && error("Could not open $(f.filename) for writing")
+    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
+    fp == C_NULL && error("Could not open $(fpath) for writing")
 
     png_ptr = create_write_struct(png_error_fn, png_warn_fn)
     info_ptr = create_info_struct(png_ptr)
@@ -156,9 +203,13 @@ function save(
         bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
     end
 
+    # this gAMA and cHRM should be added for compatibility with older systems
+    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
+
+
     @debug(
         "Write PNG info:",
-        f.filename,
+        fpath,
         height,
         width,
         bit_depth,
@@ -169,6 +220,7 @@ function save(
         filters,
         compression_level,
         compression_strategy,
+        gamma,
         typeof(image)
     )
 
@@ -193,18 +245,6 @@ function save(
     png_destroy_write_struct(Ref(png_ptr), Ref(info_ptr))
     close_png(fp)
 end
-function save(
-        f::String,
-        image::S,
-        compression_level::Integer=Z_NO_COMPRESSION,
-        compression_strategy::Integer=Z_RLE,
-        filters::Integer=Int(PNG_FILTER_PAETH)
-    ) where {
-        T,
-        S<:Union{AbstractMatrix,AbstractArray{T,3}}
-    }
-    return save(File{DataFormat{:PNG}}(f), image, compression_level, compression_strategy, filters)
-end
 
 function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T}
     ccall(
@@ -217,7 +257,7 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
     png_write_end(png_ptr, info_ptr)
 end
 
-_prepare_buffer(x::BitArray) where {T<:Colorant{<:Normed}} = _prepare_buffer(collect(x))
+_prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} = reinterpret(Gray{N0f8}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt16} = reinterpret(Gray{N0f16}, x)
