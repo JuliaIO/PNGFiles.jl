@@ -34,11 +34,6 @@ function plotdiffs(p, i)
     --------------|---------------|----------------------|---------------------
     ...
     """
-    hborder = hcat(
-        fill(RGBA{Float64}(0, 0, 0, 1), size(o, 1) + size(p, 1), 1),
-        fill(RGBA{Float64}(1, 1, 1, 1), size(o, 1) + size(p, 1), 1),
-        fill(RGBA{Float64}(0, 0, 0, 1), size(o, 1) + size(p, 1), 1),
-    )
     _p = convert.(RGBA{Float64}, p)
     __p = collect(channelview(_p))
     __p[4, :, :] .= 0.0
@@ -47,6 +42,11 @@ function plotdiffs(p, i)
     __i[4, :, :] .= 1.0 # make the difference in alpha be 1 so it is visible
     d = collect(colorview(RGBA{Float64}, absdiff.(__p, __i)))
     o = _plotdiffs(p, i)
+    hborder = hcat(
+        fill(RGBA{Float64}(0, 0, 0, 1), size(o, 1) + size(p, 1), 1),
+        fill(RGBA{Float64}(1, 1, 1, 1), size(o, 1) + size(p, 1), 1),
+        fill(RGBA{Float64}(0, 0, 0, 1), size(o, 1) + size(p, 1), 1),
+    )
 
     collect(hcat(
         vcat(_p, _plotchannels(p)),
@@ -59,7 +59,7 @@ function plotdiffs(p, i)
     ))
 end
 
-vboarder(p) = vcat(
+vborder(p) = vcat(
     fill(RGBA{Float64}(0, 0, 0, 1), 1, size(p, 2)),
     fill(RGBA{Float64}(1, 1, 1, 1), 1, size(p, 2)),
     fill(RGBA{Float64}(0, 0, 0, 1), 1, size(p, 2)),
@@ -79,37 +79,37 @@ end
 function _plotdiffs(p::AbstractArray{<:RGBA}, i::AbstractArray{<:RGBA})
     a = absdiff.(alpha.(i), alpha.(p))
     vcat(
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(absdiff.(red.(i), red.(p)), 0, 0, 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(0, absdiff.(green.(i), green.(p)), 0, 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(0, 0, absdiff.(blue.(i), blue.(p)), 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(a, a, a, 1),
     )
 end
 
 function _plotchannels(p)
     vcat(
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(red.(p), 0, 0, 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(0, green.(p), 0, 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(0, 0, blue.(p), 1),
     )
 end
 
 function _plotchannels(p::AbstractArray{<:RGBA})
     vcat(
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(red.(p), 0, 0, 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(0, green.(p), 0, 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(0, 0, blue.(p), 1),
-        vboarder(p),
+        vborder(p),
         RGBA{Float64}.(alpha.(p), alpha.(p), alpha.(p), 1),
     )
 end
@@ -118,7 +118,7 @@ function _rescale(x::AbstractArray)
     c = channelview(x)
     m = maximum(c)
     m = iszero(m) ? one(m) : m
-    colorview(RGBA{Float64}, c ./ m)
+    colorview(RGBA{Float64}, 100 * c ./ m)
 end
 
 
