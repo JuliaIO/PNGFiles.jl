@@ -220,7 +220,6 @@ function save(
         filters,
         compression_level,
         compression_strategy,
-        gamma,
         typeof(image)
     )
 
@@ -271,13 +270,13 @@ _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGB{<:AbstractFloat}} =
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGBA{<:AbstractFloat}} =
     convert(Array{RGBA{N0f8}}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:BGR{<:AbstractFloat}} =
-    convert(Array{RGB{N0f8}}, x)
+    convert(Array{BGR{N0f8}}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:BGRA{<:AbstractFloat}} =
-    convert(Array{RGBA{N0f8}}, x)
+    convert(Array{BGRA{N0f8}}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:ARGB{<:AbstractFloat}} =
-    convert(Array{RGBA{N0f8}}, x)
+    convert(Array{ARGB{N0f8}}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:ABGR{<:AbstractFloat}} =
-    convert(Array{RGBA{N0f8}}, x)
+    convert(Array{ABGR{N0f8}}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Union{AbstractFloat,Bool}} =
     reinterpret(Gray{N0f8}, convert(Array{N0f8}, x))
 _prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{AbstractFloat,Bool}} =
