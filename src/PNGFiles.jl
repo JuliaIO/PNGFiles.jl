@@ -2,7 +2,6 @@ module PNGFiles
 # Started as a fork of https://github.com/FugroRoames/LibPNG.jl
 
 using libpng_jll
-using ImageCore
 
 libpng_wrap_dir = joinpath(@__DIR__, "..", "gen", "libpng")
 using CEnum

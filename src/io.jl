@@ -293,14 +293,11 @@ function __prepare_buffer(x::AbstractArray{T,3}) where {T}
     if nchannels == 1
         ifelse(ndims(x) == 3, _prepare_buffer(dropdims(x, dims=3)), x)
     elseif nchannels == 2
-        convert(Array{GrayA}, colorview(GrayA, view(x, :, :, 1), view(x, :, :, 2)))
+        GrayA.(view(x, :, :, 1),view(x, :, :, 2))
     elseif nchannels == 3
-        convert(Array{RGB}, colorview(RGB, view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3)))
+        RGB.(view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3))
     elseif nchannels == 4
-        convert(
-            Array{RGBA},
-            colorview(RGBA, view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3), view(x, :, :, 4)),
-        )
+        RGBA.(view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3), view(x, :, :, 4))
     else
         error("Unsupported number of channels $(nchannels) in input. Only <= 4 is expected.")
     end

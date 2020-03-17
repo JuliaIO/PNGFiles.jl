@@ -1,5 +1,4 @@
-using Images: maxabsfinite
-using ImageCore
+using Images
 using ImageMagick
 using Logging
 using Test
