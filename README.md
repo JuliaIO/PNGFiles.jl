@@ -19,13 +19,13 @@ Once `ImageIO` is installed, usage is as simple as:
 
 ```jl
 using FileIO
-save("test.png", rand(Gray, 100, 100))
-load("test.png")
+save("img.png", rand(Gray, 100, 100))
+load("img.png")
 ```
 
 Or direct usage, if `PNGFiles` has been directly installed:
 ```jl
 using PNGFiles
-PNGFiles.save("path/to/img.png", rand(Gray, 100, 100))
-PNGFiles.load("path/to/img.png")
+PNGFiles.save("img.png", rand(Gray, 100, 100))
+PNGFiles.load("img.png")
 ```
