@@ -1,8 +1,3 @@
-using ImageMagick
-using Images
-using Test
-using PNGFiles: _inspect_png_read, load
-
 onfail(body, x) = error("I might have overlooked something: $x")
 onfail(body, _::Test.Pass) = nothing
 onfail(body, _::Tuple{Test.Fail,T}) where {T} = body()
@@ -125,3 +120,49 @@ function _rescale(x::AbstractArray)
     m = iszero(m) ? one(m) : m
     colorview(RGBA{Float64}, c ./ m)
 end
+
+
+## COPIED FROM Images.jl/src/algorithms.jl
+
+"""
+`m = maxabsfinite(A)` calculates the maximum absolute value in `A`, ignoring any values that are not finite (Inf or NaN).
+"""
+function maxabsfinite(A::AbstractArray{T}) where T
+    ret = sentinel_min(typeof(abs(A[1])))
+    for a in A
+        ret = maxfinite_scalar(abs(a), ret)
+    end
+    ret
+end
+
+minfinite_scalar(a::T, b::T) where {T} = isfinite(a) ? (b < a ? b : a) : b
+maxfinite_scalar(a::T, b::T) where {T} = isfinite(a) ? (b > a ? b : a) : b
+minfinite_scalar(a::T, b::T) where {T<:Union{Integer,FixedPoint}} = b < a ? b : a
+maxfinite_scalar(a::T, b::T) where {T<:Union{Integer,FixedPoint}} = b > a ? b : a
+minfinite_scalar(a, b) = minfinite_scalar(promote(a, b)...)
+maxfinite_scalar(a, b) = maxfinite_scalar(promote(a, b)...)
+
+function minfinite_scalar(c1::C, c2::C) where C<:AbstractRGB
+    C(minfinite_scalar(c1.r, c2.r),
+      minfinite_scalar(c1.g, c2.g),
+      minfinite_scalar(c1.b, c2.b))
+end
+function maxfinite_scalar(c1::C, c2::C) where C<:AbstractRGB
+    C(maxfinite_scalar(c1.r, c2.r),
+      maxfinite_scalar(c1.g, c2.g),
+      maxfinite_scalar(c1.b, c2.b))
+end
+
+sentinel_min(::Type{T}) where {T<:Union{Integer,FixedPoint}} = typemax(T)
+sentinel_max(::Type{T}) where {T<:Union{Integer,FixedPoint}} = typemin(T)
+sentinel_min(::Type{T}) where {T<:AbstractFloat} = convert(T, NaN)
+sentinel_max(::Type{T}) where {T<:AbstractFloat} = convert(T, NaN)
+sentinel_min(::Type{C}) where {C<:AbstractRGB} = _sentinel_min(C, eltype(C))
+_sentinel_min(::Type{C},::Type{T}) where {C<:AbstractRGB,T} = (s = sentinel_min(T); C(s,s,s))
+sentinel_max(::Type{C}) where {C<:AbstractRGB} = _sentinel_max(C, eltype(C))
+_sentinel_max(::Type{C},::Type{T}) where {C<:AbstractRGB,T} = (s = sentinel_max(T); C(s,s,s))
+sentinel_min(::Type{C}) where {C<:AbstractGray} = _sentinel_min(C, eltype(C))
+_sentinel_min(::Type{C},::Type{T}) where {C<:AbstractGray,T} = C(sentinel_min(T))
+sentinel_max(::Type{C}) where {C<:AbstractGray} = _sentinel_max(C, eltype(C))
+_sentinel_max(::Type{C},::Type{T}) where {C<:AbstractGray,T} = C(sentinel_max(T))
+

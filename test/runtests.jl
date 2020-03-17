@@ -1,10 +1,10 @@
-using Images
-using ImageMagick
 using Logging
-using Test
-
 using Glob
+using ImageCore
+using ImageMagick
+using Test
 using PNGFiles
+import PNGFiles._inspect_png_read
 
 const DEBUG_FILE = joinpath(@__DIR__, "_debugfile.jmd")
 
