@@ -1,11 +1,10 @@
-using Images: maxabsfinite
+using Logging
+using Glob
 using ImageCore
 using ImageMagick
-using Logging
 using Test
-
-using Glob
 using PNGFiles
+import PNGFiles._inspect_png_read
 
 const DEBUG_FILE = joinpath(@__DIR__, "_debugfile.jmd")
 
