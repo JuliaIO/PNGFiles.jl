@@ -139,7 +139,7 @@ end
 ### Write ##########################################################################################
 """
     save(fpath::String, image::AbstractArray;
-         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
+         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4, palette=zeros(RGB,0))
 
 Writes `image` as a png to file at `fpath`.
 
@@ -162,7 +162,8 @@ function save(
         image::S;
         compression_level::Integer=Z_NO_COMPRESSION,
         compression_strategy::Integer=Z_RLE,
-        filters::Integer=Int(PNG_FILTER_PAETH)
+        filters::Integer=Int(PNG_FILTER_PAETH),
+        palette=zeros(RGB,0)
     ) where {
         T,
         S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -198,13 +199,18 @@ function save(
         png_set_swap_alpha(png_ptr)
     end
 
+    # this gAMA and cHRM should be added for compatibility with older systems
+    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
+
+    if (length(palette) > 0)
+       color_type = PNG_COLOR_TYPE_PALETTE
+       bit_depth = ceil(Int, log2(length(palette)))
+    end
+
     if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
         png_set_packing(png_ptr)
         bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
     end
-
-    # this gAMA and cHRM should be added for compatibility with older systems
-    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
 
 
     @debug(
@@ -235,6 +241,11 @@ function save(
         compression_type,
         filter_type,
     )
+    if color_type == PNG_COLOR_TYPE_PALETTE
+       num_palette = length(palette)
+       png_set_PLTE(png_ptr, info_ptr, palette,
+   num_palette)
+    end
     png_write_info(png_ptr, info_ptr)
     bit_depth == 16 && png_set_swap(png_ptr) # Handles endianness for 16 bit
 
