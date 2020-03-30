@@ -139,72 +139,85 @@ end
 ### Write ##########################################################################################
 """
     save(fpath::String, image::AbstractArray;
-         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4, palette=zeros(RGB,0))
+         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4,
+         palette=nothing, check_palette_indices=true)
 
-Writes `image` as a png to file at `fpath`.
+Writes `image` as a png to file at `fpath`. When you provide a `palette`, `image` should be matrix
+of `UInt8` where each value is a zero-based index into the `palette`.
 
 ## Arguments
-`compression_level`: 0 (Z_NO_COMPRESSION), 1 (Z_BEST_SPEED), ..., 9 (Z_BEST_COMPRESSION)
-`compression_strategy`: 0 (Z_DEFAULT_STRATEGY), 1 (Z_FILTERED), 2 (Z_HUFFMAN_ONLY), 3 (Z_RLE), 4 (Z_FIXED)
-`filters`: 0 (None), 1 (Sub), 2 (Up), 3 (Average), 4 (Paeth).
+- `compression_level`: 0 (`Z_NO_COMPRESSION`), 1 (`Z_BEST_SPEED`), ..., 9 (`Z_BEST_COMPRESSION`)
+- `compression_strategy`: 0 (`Z_DEFAULT_STRATEGY`), 1 (`Z_FILTERED`), 2 (`Z_HUFFMAN_ONLY`), 3 (`Z_RLE`), 4 (`Z_FIXED`)
+- `filters`: 0 (None), 1 (Sub), 2 (Up), 3 (Average), 4 (Paeth).
+- `pallete`: `nothing` or a vector of `RGB{N0f8}` or `RGBA{N0f8}`.
+- `check_palette_indices`: When `palette` is not `nothing`, this `Bool` toggles a check that all
+    values in `image` are valid zero-based indices to `palette`.
 
 The saved image will have 16 bits of depth if the `image` has eltype that is based on `UInt16`,
 8 bits otherwise.
+
 The number of channels and element type of the `image` determines the color type of the
 output:
-    0/1 channel Float / Integer / Normed or Gray eltype        -> PNG_COLOR_TYPE_GRAY
-    2 channels Float  / Integer / Normed or GrayA eltype       -> PNG_COLOR_TYPE_GRAY_ALPHA
-    3 channels Float  / Integer / Normed or RGB / BGR eltype   -> PNG_COLOR_TYPE_RGB
-    4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> PNG_COLOR_TYPE_RGB_ALPHA
+- 0/1 channel Float / Integer / Normed or Gray eltype        -> `PNG_COLOR_TYPE_GRAY`
+- 2 channels Float  / Integer / Normed or GrayA eltype       -> `PNG_COLOR_TYPE_GRAY_ALPHA`
+- 3 channels Float  / Integer / Normed or RGB / BGR eltype   -> `PNG_COLOR_TYPE_RGB`
+- 4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> `PNG_COLOR_TYPE_RGB_ALPHA`
 """
 function save(
-        fpath,
-        image::S;
-        compression_level::Integer=Z_NO_COMPRESSION,
-        compression_strategy::Integer=Z_RLE,
-        filters::Integer=Int(PNG_FILTER_PAETH),
-        palette=zeros(RGB,0)
-    ) where {
-        T,
-        S<:Union{AbstractMatrix,AbstractArray{T,3}}
-    }
+    fpath,
+    image::S;
+    compression_level::Integer = Z_NO_COMPRESSION,
+    compression_strategy::Integer = Z_RLE,
+    filters::Integer = Int(PNG_FILTER_PAETH),
+    palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
+    check_palette_indices::Bool = true,
+) where {
+    T,
+    S<:Union{AbstractMatrix,AbstractArray{T,3}}
+}
     @assert Z_DEFAULT_STRATEGY <= compression_strategy <= Z_FIXED
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
+
+    height, width = size(image)[1:2]
+    bit_depth = _get_bit_depth(image)
+    color_type = _get_color_type(image)
 
     fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
     fp == C_NULL && error("Could not open $(fpath) for writing")
 
     png_ptr = create_write_struct(png_error_fn, png_warn_fn)
     info_ptr = create_info_struct(png_ptr)
+
     png_init_io(png_ptr, fp)
+
     png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, UInt32(filters))
     png_set_compression_level(png_ptr, compression_level)
     png_set_compression_strategy(png_ptr, compression_strategy)
 
-    height, width = size(image)[1:2]
-    bit_depth = _get_bit_depth(image)
-    color_type = _get_color_type(image)
-    interlace = PNG_INTERLACE_NONE
-    compression_type = PNG_COMPRESSION_TYPE_BASE
-    filter_type = PNG_FILTER_TYPE_BASE
-
-    elt = eltype(image)
-    if (elt <: BGR || elt <: BGRA || elt <: ABGR)
-       png_set_bgr(png_ptr)
+    if !isnothing(palette)
+        # TODO: 1, 2, 4 bit-depth indices for palleted
+        _png_check_paletted(palette, bit_depth, image, check_palette_indices)
+        color_type = PNG_COLOR_TYPE_PALETTE
+        color_count = length(palette)
+        if eltype(palette) <: RGBA
+            palette_rgb = convert(Vector{RGB{N0f8}}, palette)
+            palette_alpha = alpha.(palette)
+            png_set_PLTE(png_ptr, info_ptr, palette_rgb, color_count)
+            png_set_tRNS(png_ptr, info_ptr, palette_alpha, color_count, C_NULL)
+        else
+            png_set_PLTE(png_ptr, info_ptr, palette, color_count)
+        end
     end
 
-    if (elt <: ABGR || elt <: ARGB)
+    image_eltype = eltype(image)
+    if (image_eltype <: BGR || image_eltype <: BGRA || image_eltype <: ABGR)
+        png_set_bgr(png_ptr)
+    end
+
+    if (image_eltype <: ABGR || image_eltype <: ARGB)
         png_set_swap_alpha(png_ptr)
-    end
-
-    # this gAMA and cHRM should be added for compatibility with older systems
-    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
-
-    if (length(palette) > 0)
-       color_type = PNG_COLOR_TYPE_PALETTE
-       bit_depth = ceil(Int, log2(length(palette)))
     end
 
     if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
@@ -212,6 +225,8 @@ function save(
         bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
     end
 
+    # gAMA and cHRM chunks should be always present for compatibility with older systems
+    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
 
     @debug(
         "Write PNG info:",
@@ -220,12 +235,11 @@ function save(
         width,
         bit_depth,
         color_type,
-        interlace,
-        compression_type,
-        filter_type,
         filters,
         compression_level,
         compression_strategy,
+        palette,
+        check_palette_indices,
         typeof(image)
     )
 
@@ -237,17 +251,14 @@ function save(
         height,
         bit_depth,
         color_type,
-        interlace,
-        compression_type,
-        filter_type,
+        PNG_INTERLACE_NONE,
+        PNG_COMPRESSION_TYPE_BASE,
+        PNG_FILTER_TYPE_BASE,
     )
-    if color_type == PNG_COLOR_TYPE_PALETTE
-       num_palette = length(palette)
-       png_set_PLTE(png_ptr, info_ptr, palette,
-   num_palette)
-    end
+
     png_write_info(png_ptr, info_ptr)
-    bit_depth == 16 && png_set_swap(png_ptr) # Handles endianness for 16 bit
+    # Handles endianness for 16 bit, must be set after png_write_info
+    bit_depth == 16 && png_set_swap(png_ptr)
 
     # We transpose to work around libpng expecting row-major arrays
     _write_image(transpose(_prepare_buffer(image)), png_ptr, info_ptr)
@@ -265,6 +276,23 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
         map(pointer, eachcol(buf)),
     )
     png_write_end(png_ptr, info_ptr)
+end
+
+function _png_check_paletted(palette, bit_depth, image, check_bounds)
+    color_count = length(palette)
+    color_count > 256 && throw(ArgumentError("Maximum size of `palette` is 256 colors"))
+    if !(eltype(image) <: UInt8)
+        throw(ArgumentError(
+            "Elements of `image` are zero based indices to `pallete` " *
+            "and mu be represented as `UInt8`s",
+        ))
+    end
+    if check_bounds && color_count <= maximum(image)
+        throw(ArgumentError(
+            "Maximum value in `image` is larger or equal to `length(palette)`. " *
+            "This would've resulted into an out of bounds indexing into `palette`.",
+        ))
+    end
 end
 
 _prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
