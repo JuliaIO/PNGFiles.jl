@@ -284,13 +284,13 @@ function _png_check_paletted(palette, bit_depth, image, check_bounds)
     if !(eltype(image) <: UInt8)
         throw(ArgumentError(
             "Elements of `image` are zero based indices to `pallete` " *
-            "and mu be represented as `UInt8`s",
+            "and must be represented as `UInt8`s"
         ))
     end
     if check_bounds && color_count <= maximum(image)
         throw(ArgumentError(
             "Maximum value in `image` is larger or equal to `length(palette)`. " *
-            "This would've resulted into an out of bounds indexing into `palette`.",
+            "This would've resulted into an out of bounds indexing into `palette`."
         ))
     end
 end
