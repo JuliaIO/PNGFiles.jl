@@ -2,6 +2,7 @@ using Logging
 using Glob
 using ImageCore
 using ImageMagick
+using IndirectArrays
 using Test
 using PNGFiles
 import PNGFiles._inspect_png_read

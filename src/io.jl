@@ -137,21 +137,22 @@ end
 
 
 ### Write ##########################################################################################
+
+const SupportedPaletteColor = Union{
+    AbstractRGB{<:Union{N0f8,AbstractFloat}},
+    TransparentRGB{T,<:Union{N0f8,AbstractFloat}} where T,
+}
+
 """
     save(fpath::String, image::AbstractArray;
-         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4,
-         palette=nothing, check_palette_indices=true)
+         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
 
-Writes `image` as a png to file at `fpath`. When you provide a `palette`, `image` should be matrix
-of `UInt8` where each value is a zero-based index into the `palette`.
+Writes `image` as a png to file at `fpath`.
 
 ## Arguments
 - `compression_level`: 0 (`Z_NO_COMPRESSION`), 1 (`Z_BEST_SPEED`), ..., 9 (`Z_BEST_COMPRESSION`)
 - `compression_strategy`: 0 (`Z_DEFAULT_STRATEGY`), 1 (`Z_FILTERED`), 2 (`Z_HUFFMAN_ONLY`), 3 (`Z_RLE`), 4 (`Z_FIXED`)
 - `filters`: 0 (None), 1 (Sub), 2 (Up), 3 (Average), 4 (Paeth).
-- `pallete`: `nothing` or a vector of `RGB{N0f8}` or `RGBA{N0f8}`.
-- `check_palette_indices`: When `palette` is not `nothing`, this `Bool` toggles a check that all
-    values in `image` are valid zero-based indices to `palette`.
 
 The saved image will have 16 bits of depth if the `image` has eltype that is based on `UInt16`,
 8 bits otherwise.
@@ -162,6 +163,10 @@ output:
 - 2 channels Float  / Integer / Normed or GrayA eltype       -> `PNG_COLOR_TYPE_GRAY_ALPHA`
 - 3 channels Float  / Integer / Normed or RGB / BGR eltype   -> `PNG_COLOR_TYPE_RGB`
 - 4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> `PNG_COLOR_TYPE_RGB_ALPHA`
+
+When `image` is an `IndirectArray` with up to 256 unique colors, the result is encoded as a
+    "paletted image".
+
 """
 function save(
     fpath,
@@ -196,33 +201,31 @@ function save(
     png_set_compression_level(png_ptr, compression_level)
     png_set_compression_strategy(png_ptr, compression_strategy)
 
-    if !isnothing(palette)
+    if color_type == PNG_COLOR_TYPE_PALETTE
         # TODO: 1, 2, 4 bit-depth indices for palleted
-        _png_check_paletted(palette, bit_depth, image, check_palette_indices)
-        color_type = PNG_COLOR_TYPE_PALETTE
+        _png_check_paletted(image)
+        palette = image.values
         color_count = length(palette)
-        if eltype(palette) <: RGBA
-            palette_rgb = convert(Vector{RGB{N0f8}}, palette)
-            palette_alpha = alpha.(palette)
-            png_set_PLTE(png_ptr, info_ptr, palette_rgb, color_count)
-            png_set_tRNS(png_ptr, info_ptr, palette_alpha, color_count, C_NULL)
+        if eltype(palette) <: TransparentRGB
+            png_set_PLTE(png_ptr, info_ptr, _standardize_palette(color.(palette)), color_count)
+            png_set_tRNS(png_ptr, info_ptr, _palette_alpha(palette), color_count, C_NULL)
         else
-            png_set_PLTE(png_ptr, info_ptr, palette, color_count)
+            png_set_PLTE(png_ptr, info_ptr, _standardize_palette(palette), color_count)
         end
-    end
+    else
+        image_eltype = eltype(image)
+        if (image_eltype <: BGR || image_eltype <: BGRA || image_eltype <: ABGR)
+            png_set_bgr(png_ptr)
+        end
 
-    image_eltype = eltype(image)
-    if (image_eltype <: BGR || image_eltype <: BGRA || image_eltype <: ABGR)
-        png_set_bgr(png_ptr)
-    end
+        if (image_eltype <: ABGR || image_eltype <: ARGB)
+            png_set_swap_alpha(png_ptr)
+        end
 
-    if (image_eltype <: ABGR || image_eltype <: ARGB)
-        png_set_swap_alpha(png_ptr)
-    end
-
-    if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
-        png_set_packing(png_ptr)
-        bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
+        if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
+            png_set_packing(png_ptr)
+            bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
+        end
     end
 
     # gAMA and cHRM chunks should be always present for compatibility with older systems
@@ -261,7 +264,7 @@ function save(
     bit_depth == 16 && png_set_swap(png_ptr)
 
     # We transpose to work around libpng expecting row-major arrays
-    _write_image(transpose(_prepare_buffer(image)), png_ptr, info_ptr)
+    _write_image(permutedims(_prepare_buffer(image), (2, 1)), png_ptr, info_ptr)
 
     png_destroy_write_struct(Ref(png_ptr), Ref(info_ptr))
     close_png(fp)
@@ -278,23 +281,21 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
     png_write_end(png_ptr, info_ptr)
 end
 
-function _png_check_paletted(palette, bit_depth, image, check_bounds)
+function _png_check_paletted(image)
+    palette = image.values
     color_count = length(palette)
-    color_count > 256 && throw(ArgumentError("Maximum size of `palette` is 256 colors"))
-    if !(eltype(image) <: UInt8)
+    color_type = eltype(palette)
+
+    ndims(image) != 2 && throw(ArgumentError("Only 2D `IndirectArrays` are supported"))
+    color_count > 256 && throw(ArgumentError("Maximum size of `image.velues` is 256 colors"))
+    if !(color_type <: SupportedPaletteColor)
         throw(ArgumentError(
-            "Elements of `image` are zero based indices to `pallete` " *
-            "and must be represented as `UInt8`s"
-        ))
-    end
-    if check_bounds && color_count <= maximum(image)
-        throw(ArgumentError(
-            "Maximum value in `image` is larger or equal to `length(palette)`. " *
-            "This would've resulted into an out of bounds indexing into `palette`."
+            "Only 8-bit (transparent) RGB colors are supported for paletted images"
         ))
     end
 end
 
+_prepare_buffer(x::IndirectArray) = convert(Array{UInt8}, x.index .- 1)
 _prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} = reinterpret(Gray{N0f8}, x)
@@ -367,6 +368,7 @@ _get_color_type(x::AbstractArray{<:BGR{T}}) where {T} = PNG_COLOR_TYPE_RGB
 _get_color_type(x::AbstractArray{<:BGRA{T}}) where {T} = PNG_COLOR_TYPE_RGBA
 _get_color_type(x::AbstractArray{<:ARGB{T}}) where {T} = PNG_COLOR_TYPE_RGBA
 _get_color_type(x::AbstractArray{<:ABGR{T}}) where {T} = PNG_COLOR_TYPE_RGBA
+_get_color_type(x::IndirectArray) = PNG_COLOR_TYPE_PALETTE
 function _get_color_type(
         x::AbstractArray{T, N}
     ) where {
@@ -383,4 +385,14 @@ function _get_color_type(
         d == 4 && (return PNG_COLOR_TYPE_RGBA)
     end
     error("Number of dimensions $(N) in image not supported (only 2D or 3D Arrays are expected).")
+end
+
+_standardize_palette(p::Vector{<:RGB}) = p
+_standardize_palette(p::Vector{<:AbstractRGB}) = convert(Vector{RGB}, p)
+_standardize_palette(p::Vector{<:RGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
+_standardize_palette(p::Vector{<:AbstractRGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
+
+_palette_alpha(p::AbstractVector{<:TransparentRGB{T,N0f8}}) where {T} = alpha.(p)
+function _palette_alpha(p::AbstractVector{<:TransparentRGB{T,<:AbstractFloat}}) where {T}
+    convert(Array{N0f8}, alpha.(p))
 end

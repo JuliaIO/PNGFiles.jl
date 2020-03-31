@@ -3,6 +3,7 @@ module PNGFiles
 
 using libpng_jll
 using ImageCore
+using IndirectArrays
 
 libpng_wrap_dir = joinpath(@__DIR__, "..", "gen", "libpng")
 using CEnum
