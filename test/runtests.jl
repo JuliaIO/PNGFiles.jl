@@ -51,4 +51,6 @@ end
 end
 
 # Cleanup
-isdir(PNG_TEST_PATH) && rm(PNG_TEST_PATH, recursive = true)
+if !is_ci()
+    isdir(PNG_TEST_PATH) && rm(PNG_TEST_PATH, recursive = true)
+end
