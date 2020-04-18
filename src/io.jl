@@ -1,19 +1,23 @@
 """
-    load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
+    load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
 
 Read a `.png` image from file at `fpath`. `gamma` can be used to override the automatic gamma
 correction, a value of 1.0 means no gamma correction.
-Returns a matrix.
 
 The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
 otherwise.
+
 The number of channels (and transparency) of the source determines the color type of the output:
-    1 channel  -> Gray
-    2 channels -> GrayA
-    3 channels -> RGB
-    4 channels -> RGBA
+- 1 channel  -> Gray
+- 2 channels -> GrayA
+- 3 channels -> RGB
+- 4 channels -> RGBA
+
+When reading in simple paletted images, i.e. having a PLTE chunk and an 8 bit depth, the image will
+be represented as an `IndirectArray` with `OffsetArray` `values` field. To always get back a plain
+`Matrix` of colorants, use `expand_paletted=true`.
 """
-function load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
+function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
@@ -64,28 +68,57 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
         png_set_gamma(png_ptr, screen_gamma, image_gamma[])
     end
 
-    if color_type == PNG_COLOR_TYPE_PALETTE
-        png_set_palette_to_rgb(png_ptr)
-        color_type = PNG_COLOR_TYPE_RGB
-    end
+    read_as_paletted = !expand_paletted &&
+        color_type == PNG_COLOR_TYPE_PALETTE &&
+        bit_depth == 8
 
-    if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
-        png_set_expand_gray_1_2_4_to_8(png_ptr)
-        png_set_packing(png_ptr)
-        bit_depth = UInt8(8)
-    end
-
-    if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
-        png_set_tRNS_to_alpha(png_ptr)
-        if color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_RGB
-            color_type |= PNG_COLOR_MASK_ALPHA
+    if !read_as_paletted
+        if color_type == PNG_COLOR_TYPE_PALETTE
+            png_set_palette_to_rgb(png_ptr)
+            color_type = PNG_COLOR_TYPE_RGB
         end
-    end
 
-    buffer_eltype = _buffer_color_type(color_type, bit_depth)
+        if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
+            png_set_expand_gray_1_2_4_to_8(png_ptr)
+            png_set_packing(png_ptr)
+            bit_depth = 8
+        end
+
+        if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
+            png_set_tRNS_to_alpha(png_ptr)
+            if color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_RGB
+                color_type |= PNG_COLOR_MASK_ALPHA
+            end
+        end
+        buffer_eltype = _buffer_color_type(color_type, bit_depth)
+        bit_depth == 16 && png_set_swap(png_ptr)
+    end
     n_passes = png_set_interlace_handling(png_ptr)
-    bit_depth == 16 && png_set_swap(png_ptr)
     png_read_update_info(png_ptr, info_ptr)
+
+    # Gamma correction is applied to a palette after `png_read_update_info` is called
+    if read_as_paletted
+        palette_length = Ref{Cint}()
+        # TODO: Figure out the lenght of paletted before calling png_get_PLTEs
+        palette_buffer = Vector{RGB{N0f8}}(undef, PNG_MAX_PALETTE_LENGTH)
+        png_get_PLTE(png_ptr, info_ptr, pointer_from_objref(palette_buffer), palette_length)
+        palette = palette_buffer[1:palette_length[]]
+
+        if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
+            alpha_buffer = Vector{_AlphaBuffer}(undef, palette_length[])
+            alphas_cnt = Ref{Cint}()
+            png_get_tRNS(png_ptr, info_ptr, pointer_from_objref(alpha_buffer), alphas_cnt, C_NULL)
+            if alphas_cnt[] > 1
+                palette = map(x->RGBA(x[1], x[2].val), zip(palette, alpha_buffer))
+            else
+                # Seems that if there is only one transparency entry, it is applied to the first
+                # color in palette while the rest of the colors are opaque
+                α = alpha_buffer[1].val
+                palette = map(x->RGBA(x[2], x[1] == 1 ? α : 1), enumerate(palette))
+            end
+        end
+        buffer_eltype = UInt8
+    end
 
     # We transpose to work around libpng expecting row-major arrays
     buffer = Array{buffer_eltype}(undef, width, height)
@@ -105,6 +138,7 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
         image_gamma[],
         screen_gamma,
         intent[],
+        read_as_paletted,
         n_passes,
         buffer_eltype,
         PNG_HEADER_VERSION_STRING
@@ -114,7 +148,14 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing)
     png_read_end(png_ptr, info_ptr)
     png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
     close_png(fp)
-    return transpose(buffer)
+    buffer = permutedims(buffer, (2, 1))
+    if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
+        return buffer
+    else
+        # We got 0-based indices back from libpng and converting to 1-based could overflow UInt8.
+        # Using UInt16 for index would cost us large part of the savings provided by IndirectArray.
+        return IndirectArray(buffer, OffsetArray(palette, 0:length(palette)-1))
+    end
 end
 
 function _buffer_color_type(color_type, bit_depth)
@@ -164,8 +205,8 @@ output:
 - 3 channels Float  / Integer / Normed or RGB / BGR eltype   -> `PNG_COLOR_TYPE_RGB`
 - 4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> `PNG_COLOR_TYPE_RGB_ALPHA`
 
-When `image` is an `IndirectArray` with up to 256 unique colors, the result is encoded as a
-    "paletted image".
+When `image` is an `IndirectArray` with up to 256 unique RGB colors, the result is encoded as a 
+"paletted image".
 
 """
 function save(
@@ -175,7 +216,6 @@ function save(
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
-    check_palette_indices::Bool = true,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -242,7 +282,6 @@ function save(
         compression_level,
         compression_strategy,
         palette,
-        check_palette_indices,
         typeof(image)
     )
 
@@ -295,6 +334,9 @@ function _png_check_paletted(image)
     end
 end
 
+function _prepare_buffer(x::IndirectArray{T,2,I,V}) where {T,I<:AbstractMatrix{<:UInt8},V<:OffsetVector}
+    return convert(Array{UInt8}, x.index .- (x.values.offsets[1] + 1))
+end
 _prepare_buffer(x::IndirectArray) = convert(Array{UInt8}, x.index .- 1)
 _prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
@@ -387,11 +429,13 @@ function _get_color_type(
     error("Number of dimensions $(N) in image not supported (only 2D or 3D Arrays are expected).")
 end
 
-_standardize_palette(p::Vector{<:RGB}) = p
-_standardize_palette(p::Vector{<:AbstractRGB}) = convert(Vector{RGB}, p)
-_standardize_palette(p::Vector{<:RGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
-_standardize_palette(p::Vector{<:AbstractRGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
+_standardize_palette(p::AbstractVector{<:RGB}) = p
+_standardize_palette(p::AbstractVector{<:AbstractRGB}) = convert(Vector{RGB}, p)
+_standardize_palette(p::AbstractVector{<:RGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
+_standardize_palette(p::AbstractVector{<:AbstractRGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
+_standardize_palette(p::OffsetArray) = _standardize_palette(parent(p))
 
+_palette_alpha(p::OffsetArray) where {T} = _palette_alpha(collect(p))
 _palette_alpha(p::AbstractVector{<:TransparentRGB{T,N0f8}}) where {T} = alpha.(p)
 function _palette_alpha(p::AbstractVector{<:TransparentRGB{T,<:AbstractFloat}}) where {T}
     convert(Array{N0f8}, alpha.(p))

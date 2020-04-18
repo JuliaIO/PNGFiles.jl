@@ -84,7 +84,7 @@ edge_case_imgs = [
             end
             @testset "read" begin
                 global read_in_pngf = PNGFiles.load(fpath)
-                @test read_in_pngf isa Matrix
+                @test typeof(read_in_pngf) <: AbstractMatrix
             end
             @testset "compare" begin
                 @test all(expected .≈ read_in_pngf)

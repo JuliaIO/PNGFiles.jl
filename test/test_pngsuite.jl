@@ -58,7 +58,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
         @testset "$(case)" begin
             global read_in_pngf = PNGFiles.load(fpath, gamma = is_gray ? 1.0 : nothing)
-            @test read_in_pngf isa Matrix
+            @test typeof(read_in_pngf) <: AbstractMatrix
 
             path, ext = splitext(fpath)
             newpath = path * "_new" * ext
@@ -84,7 +84,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
             end
             if b >= 8 # ImageMagick.jl does not read in sub 8 bit images correctly
                 @testset "$(case): ImageMagick read values equality" begin
-                    imdiff_val = imdiff(read_in_pngf, read_in_immag)
+                    imdiff_val = imdiff(collect(read_in_pngf), read_in_immag)
                     onfail(@test imdiff_val <= get(imdiff_tolerance, case, 0.01)) do
                         PNGFiles._inspect_png_read(fpath)
                         _add_debugging_entry(fpath, case, imdiff_val)
