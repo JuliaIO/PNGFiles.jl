@@ -154,7 +154,7 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_palet
     else
         # We got 0-based indices back from libpng and converting to 1-based could overflow UInt8.
         # Using UInt16 for index would cost us large part of the savings provided by IndirectArray.
-        return IndirectArray(buffer, OffsetArray(palette, 0:length(palette)-1))
+        return IndirectArray(buffer, OffsetArray(palette, -1))
     end
 end
 
@@ -205,7 +205,7 @@ output:
 - 3 channels Float  / Integer / Normed or RGB / BGR eltype   -> `PNG_COLOR_TYPE_RGB`
 - 4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> `PNG_COLOR_TYPE_RGB_ALPHA`
 
-When `image` is an `IndirectArray` with up to 256 unique RGB colors, the result is encoded as a 
+When `image` is an `IndirectArray` with up to 256 unique RGB colors, the result is encoded as a
 "paletted image".
 
 """
