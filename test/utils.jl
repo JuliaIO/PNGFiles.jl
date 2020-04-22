@@ -2,6 +2,12 @@ onfail(body, x) = error("I might have overlooked something: $x")
 onfail(body, _::Test.Pass) = nothing
 onfail(body, _::Tuple{Test.Fail,T}) where {T} = body()
 
+function is_ci()
+    get(ENV, "TRAVIS", "") == "true" ||
+    get(ENV, "APPVEYOR", "") in ("true", "True") ||
+    get(ENV, "CI", "") in ("true", "True")
+end
+
 absdiff(x, y) = x > y ? x - y : y - x
 
 function imdiff(a, b)
@@ -165,4 +171,3 @@ sentinel_min(::Type{C}) where {C<:AbstractGray} = _sentinel_min(C, eltype(C))
 _sentinel_min(::Type{C},::Type{T}) where {C<:AbstractGray,T} = C(sentinel_min(T))
 sentinel_max(::Type{C}) where {C<:AbstractGray} = _sentinel_max(C, eltype(C))
 _sentinel_max(::Type{C},::Type{T}) where {C<:AbstractGray,T} = C(sentinel_max(T))
-

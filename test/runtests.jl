@@ -2,6 +2,7 @@ using Logging
 using Glob
 using ImageCore
 using ImageMagick
+using IndirectArrays
 using Test
 using PNGFiles
 import PNGFiles._inspect_png_read
@@ -44,9 +45,12 @@ end
 @testset "PNGFiles" begin
     include("test_invalid_inputs.jl")
     include("test_pngsuite.jl")
+    include("test_paletted_images.jl")
     include("test_synthetic_images.jl")
     include("test_testimages.jl")
 end
 
 # Cleanup
-isdir(PNG_TEST_PATH) && rm(PNG_TEST_PATH, recursive = true)
+if !is_ci()
+    isdir(PNG_TEST_PATH) && rm(PNG_TEST_PATH, recursive = true)
+end
