@@ -51,7 +51,7 @@ function _readcallback(pngPtr::png_structp, data::png_bytep, length::png_size_t)
     # Our std::istream pointer.
     a = png_get_io_ptr(pngPtr)
     # Cast the pointer to std::istream* and read 'length' bytes into 'data'
-    ((std::istream*)a)->read(data, length); #TODO: THIS IS WRONG. Not sure what to do here
+    ((std::istream*)a)->read((char*)data, length); #TODO: This is the original c code. Not sure what to do here
     return C_NULL
 end
 function _load(png_ptr, info_ptr)
