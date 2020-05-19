@@ -93,6 +93,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
             end
             @testset "$(case): IO is idempotent" begin
                 @test all(read_in_pngf .≈ PNGFiles.load(newpath))
+                @test all(read_in_pngf .≈ open(io->PNGFiles.load(io), newpath))
             end
         end
     end

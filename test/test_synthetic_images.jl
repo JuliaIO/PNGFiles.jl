@@ -106,6 +106,7 @@ edge_case_imgs = [
             PNGFiles.save(newpath, read_in_pngf)
             @testset "$(case): IO is idempotent" begin
                 @test all(read_in_pngf .≈ PNGFiles.load(newpath))
+                @test all(read_in_pngf .≈ open(io->PNGFiles.load(io), newpath))
             end
         end
     end
@@ -139,6 +140,7 @@ edge_case_imgs = [
             PNGFiles.save(newpath, read_in_pngf)
             @testset "$(case): IO is idempotent" begin
                 @test imdiff(read_in_pngf, PNGFiles.load(newpath)) < 0.01
+                @test imdiff(read_in_pngf, open(io->PNGFiles.load(io), newpath)) < 0.01
             end
         end
     end

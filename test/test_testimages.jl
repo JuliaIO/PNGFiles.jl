@@ -40,6 +40,7 @@ real_imgs = [
             PNGFiles.save(newpath, read_in_pngf)
             @testset "$(case): IO is idempotent" begin
                 @test all(read_in_pngf .≈ PNGFiles.load(newpath))
+                @test all(read_in_pngf .≈ open(io->PNGFiles.load(io), newpath))
             end
         end
     end
