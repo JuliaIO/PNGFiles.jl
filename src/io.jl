@@ -22,20 +22,19 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_palet
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
     png_init_io(png_ptr, fp)
-    buffer = _load(png_ptr, info_ptr)
+    buffer = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
     close_png(fp)
-    return formatbuffer(buffer)
+    return _formatbuffer(buffer, expand_paletted, color_type)
 end
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
-    _readcallback_c = @cfunction(_readcallback, C_NULL, (png_structp, png_bytep, png_size_t));
-    png_set_read_fn(pngPtr, s, _readcallback_c)
-    buffer = _load(png_ptr, info_ptr)
-    return formatbuffer(buffer)
+    png_set_read_fn(png_ptr, s, readcallback_c[])
+    buffer = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    return _formatbuffer(buffer, expand_paletted)
 end
 
-function _formatbuffer(buffer)
+function _formatbuffer(buffer, expand_paletted, color_type)
     buffer = permutedims(buffer, (2, 1))
     if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
         return buffer
@@ -45,16 +44,16 @@ function _formatbuffer(buffer)
         return IndirectArray(buffer, OffsetArray(palette, -1))
     end
 end
-function _readcallback(pngPtr::png_structp, data::png_bytep, length::png_size_t)
+function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cint
     # Here we get our IO pointer back from the read struct.
     # This is the parameter we passed to the png_set_read_fn() function.
     # Our std::istream pointer.
-    a = png_get_io_ptr(pngPtr)
+    a = png_get_io_ptr(png_ptr)
     # Cast the pointer to std::istream* and read 'length' bytes into 'data'
-    ((std::istream*)a)->read((char*)data, length); #TODO: This is the original c code. Not sure what to do here
-    return C_NULL
+    #((std::istream*)a)->read((char*)data, length); #TODO: This is the original c code. Not sure what to do here
+    return convert(Cint, readbytes!(a, data, nb=Int(length))) #TODO: Still not right.. readbytes! needs a stream
 end
-function _load(png_ptr, info_ptr)
+function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
     png_read_info(png_ptr, info_ptr)
 
@@ -179,7 +178,7 @@ function _load(png_ptr, info_ptr)
 
     png_read_image(png_ptr, map(pointer, eachcol(buffer)))
     png_read_end(png_ptr, info_ptr)
-    png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_p   tr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
+    png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
     return buffer
 end
 
