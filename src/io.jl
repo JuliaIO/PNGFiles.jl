@@ -51,7 +51,7 @@ function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t
     a = png_get_io_ptr(png_ptr)
     # Cast the pointer to std::istream* and read 'length' bytes into 'data'
     #((std::istream*)a)->read((char*)data, length); #TODO: This is the original c code. Not sure what to do here
-    return convert(Cint, readbytes!(a, data, nb=Int(length))) #TODO: Still not right.. readbytes! needs a stream
+    return convert(Cint, readbytes!(a, data, Int(length))) #TODO: Still not right.. readbytes! needs a stream
 end
 function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
