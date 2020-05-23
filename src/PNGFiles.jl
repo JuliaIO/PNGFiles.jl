@@ -19,7 +19,7 @@ include("utils.jl")
 include("io.jl")
 
 function __init__()
-    readcallback_c[] = @cfunction(_readcallback, Cint, (png_structp, png_bytep, png_size_t));
+    readcallback_c[] = @cfunction(_readcallback, Cvoid, (png_structp, png_bytep, png_size_t));
 end
 
 end # module

@@ -22,39 +22,28 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_palet
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
     png_init_io(png_ptr, fp)
-    buffer = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
+    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
     close_png(fp)
-    return _formatbuffer(buffer, expand_paletted, color_type)
+    return out
 end
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
-    png_set_read_fn(png_ptr, s, readcallback_c[])
-    buffer = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
-    return _formatbuffer(buffer, expand_paletted)
+    png_set_read_fn(png_ptr, s.handle, readcallback_c[])
+    # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
+    png_set_sig_bytes(png_ptr, 0)
+    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    return out
 end
 
-function _formatbuffer(buffer, expand_paletted, color_type)
-    buffer = permutedims(buffer, (2, 1))
-    if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
-        return buffer
-    else
-        # We got 0-based indices back from libpng and converting to 1-based could overflow UInt8.
-        # Using UInt16 for index would cost us large part of the savings provided by IndirectArray.
-        return IndirectArray(buffer, OffsetArray(palette, -1))
-    end
-end
-function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cint
-    # Here we get our IO pointer back from the read struct.
-    # This is the parameter we passed to the png_set_read_fn() function.
-    # Our std::istream pointer.
+function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cvoid
     a = png_get_io_ptr(png_ptr)
-    # Cast the pointer to std::istream* and read 'length' bytes into 'data'
-    #((std::istream*)a)->read((char*)data, length); #TODO: This is the original c code. Not sure what to do here
-    return convert(Cint, readbytes!(a, data, Int(length))) #TODO: Still not right.. readbytes! needs a stream
+    ccall(:ios_readall, Csize_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), a, data, length)
+    return
 end
+
 function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
-    png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
     png_read_info(png_ptr, info_ptr)
 
     width = png_get_image_width(png_ptr, info_ptr)
@@ -179,7 +168,14 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
     png_read_image(png_ptr, map(pointer, eachcol(buffer)))
     png_read_end(png_ptr, info_ptr)
     png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
-    return buffer
+    buffer = permutedims(buffer, (2, 1))
+    if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
+        return buffer
+    else
+        # We got 0-based indices back from libpng and converting to 1-based could overflow UInt8.
+        # Using UInt16 for index would cost us large part of the savings provided by IndirectArray.
+        return IndirectArray(buffer, OffsetArray(palette, -1))
+    end
 end
 
 function _buffer_color_type(color_type, bit_depth)
