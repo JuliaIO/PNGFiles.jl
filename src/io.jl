@@ -1,8 +1,10 @@
 """
     load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+    load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
 
-Read a `.png` image from file at `fpath`. `gamma` can be used to override the automatic gamma
-correction, a value of 1.0 means no gamma correction.
+Read a `.png` image from file at `fpath` or in IO stream `s`. 
+`gamma` can be used to override the automatic gamma correction, a value of 1.0 
+means no gamma correction.
 
 The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
 otherwise.
@@ -30,10 +32,12 @@ end
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
+    lock(s.lock)
     png_set_read_fn(png_ptr, s.handle, readcallback_c[])
     # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
     png_set_sig_bytes(png_ptr, 0)
     out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    unlock(s.lock)
     return out
 end
 
