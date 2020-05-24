@@ -13,6 +13,7 @@ real_imgs = [
             expected = collect(PNGFiles._prepare_buffer(image))
             fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
+                open(io->PNGFiles.save(io, image), fpath, "w") #test IO method
                 @test PNGFiles.save(fpath, image) == 0
             end
             @testset "read" begin

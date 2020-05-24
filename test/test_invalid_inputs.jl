@@ -12,10 +12,8 @@ invalid_imgs = [
 @testset "invalid inputs" begin
 for (case, exception, image) in invalid_imgs
         @testset "$(case) throws" begin
-            @test_throws exception PNGFiles.save(
-                joinpath(PNG_TEST_PATH, "test_img_err_$(case).png"),
-                image
-            )
+            @test_throws exception PNGFiles.save(joinpath(PNG_TEST_PATH, "test_img_err_$(case).png"),image)
+            @test_throws exception open(io->PNGFiles.save(io,image), joinpath(PNG_TEST_PATH, "test_img_err_$(case).png"), "w")
         end
     end
 end
