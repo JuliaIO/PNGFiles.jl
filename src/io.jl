@@ -1,8 +1,10 @@
 """
     load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+    load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
 
-Read a `.png` image from file at `fpath`. `gamma` can be used to override the automatic gamma
-correction, a value of 1.0 means no gamma correction.
+Read a `.png` image from file at `fpath` or in IO stream `s`.
+`gamma` can be used to override the automatic gamma correction, a value of 1.0
+means no gamma correction.
 
 The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
 otherwise.
@@ -23,6 +25,33 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_palet
     info_ptr = create_info_struct(png_ptr)
     png_init_io(png_ptr, fp)
     png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
+    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    close_png(fp)
+    return out
+end
+function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+    isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
+    Base.eof(s) && throw(EOFError())
+
+    png_ptr = create_read_struct()
+    info_ptr = create_info_struct(png_ptr)
+
+    lock(s.lock)
+    png_set_read_fn(png_ptr, s.handle, readcallback_c[])
+    # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
+    png_set_sig_bytes(png_ptr, 0)
+    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    unlock(s.lock)
+    return out
+end
+
+function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cvoid
+    a = png_get_io_ptr(png_ptr)
+    ccall(:ios_readall, Csize_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), a, data, length)
+    return
+end
+
+function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_read_info(png_ptr, info_ptr)
 
     width = png_get_image_width(png_ptr, info_ptr)
@@ -147,7 +176,6 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_palet
     png_read_image(png_ptr, map(pointer, eachcol(buffer)))
     png_read_end(png_ptr, info_ptr)
     png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
-    close_png(fp)
     buffer = permutedims(buffer, (2, 1))
     if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
         return buffer
@@ -187,8 +215,10 @@ const SupportedPaletteColor = Union{
 """
     save(fpath::String, image::AbstractArray;
          compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
+    save(s::IO, image::AbstractArray;
+         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
 
-Writes `image` as a png to file at `fpath`.
+Writes `image` as a png to file at `fpath`, or to IO stream `s`.
 
 ## Arguments
 - `compression_level`: 0 (`Z_NO_COMPRESSION`), 1 (`Z_BEST_SPEED`), ..., 9 (`Z_BEST_COMPRESSION`)
@@ -210,7 +240,7 @@ When `image` is an `IndirectArray` with up to 256 unique RGB colors, the result 
 
 """
 function save(
-    fpath,
+    fpath::String,
     image::S;
     compression_level::Integer = Z_NO_COMPRESSION,
     compression_strategy::Integer = Z_RLE,
@@ -225,10 +255,6 @@ function save(
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
 
-    height, width = size(image)[1:2]
-    bit_depth = _get_bit_depth(image)
-    color_type = _get_color_type(image)
-
     fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
     fp == C_NULL && error("Could not open $(fpath) for writing")
 
@@ -236,6 +262,58 @@ function save(
     info_ptr = create_info_struct(png_ptr)
 
     png_init_io(png_ptr, fp)
+
+    _save(png_ptr, info_ptr, image,
+        compression_level=compression_level,
+        compression_strategy=compression_strategy,
+        filters=filters,
+        palette=palette)
+
+    close_png(fp)
+end
+function save(
+    s::IO,
+    image::S;
+    compression_level::Integer = Z_NO_COMPRESSION,
+    compression_strategy::Integer = Z_RLE,
+    filters::Integer = Int(PNG_FILTER_PAETH),
+    palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
+) where {
+    T,
+    S<:Union{AbstractMatrix,AbstractArray{T,3}}
+}
+    @assert Z_DEFAULT_STRATEGY <= compression_strategy <= Z_FIXED
+    @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
+    @assert 2 <= ndims(image) <= 3
+    @assert size(image, 3) <= 4
+    iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
+
+    png_ptr = create_write_struct(png_error_fn, png_warn_fn)
+    info_ptr = create_info_struct(png_ptr)
+    lock(s.lock)
+    png_set_write_fn(png_ptr, s.handle, writecallback_c[], C_NULL)
+
+    _save(png_ptr, info_ptr, image,
+        compression_level=compression_level,
+        compression_strategy=compression_strategy,
+        filters=filters,
+        palette=palette)
+
+    unlock(s.lock)
+end
+
+function _save(png_ptr, info_ptr, image::S;
+    compression_level::Integer = Z_NO_COMPRESSION,
+    compression_strategy::Integer = Z_RLE,
+    filters::Integer = Int(PNG_FILTER_PAETH),
+    palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
+) where {
+    T,
+    S<:Union{AbstractMatrix,AbstractArray{T,3}}
+}
+    height, width = size(image)[1:2]
+    bit_depth = _get_bit_depth(image)
+    color_type = _get_color_type(image)
 
     png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, UInt32(filters))
     png_set_compression_level(png_ptr, compression_level)
@@ -306,7 +384,11 @@ function save(
     _write_image(permutedims(_prepare_buffer(image), (2, 1)), png_ptr, info_ptr)
 
     png_destroy_write_struct(Ref(png_ptr), Ref(info_ptr))
-    close_png(fp)
+end
+
+function _writecallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Csize_t
+    a = png_get_io_ptr(png_ptr)
+    return ccall(:ios_write, Csize_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), a, data, length)
 end
 
 function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T}

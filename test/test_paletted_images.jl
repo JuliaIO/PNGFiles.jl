@@ -20,6 +20,7 @@ expected_img(x::Matrix{<:AbstractRGB}) = convert(Array{RGB{N0f8}}, x)
             expected = expected_img(collect(image))
             fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
+                open(io->PNGFiles.save(io, image), fpath, "w")
                 @test PNGFiles.save(fpath, image) == 0
             end
             @testset "read" begin
@@ -46,6 +47,7 @@ expected_img(x::Matrix{<:AbstractRGB}) = convert(Array{RGB{N0f8}}, x)
             PNGFiles.save(newpath, read_in_pngf)
             @testset "$(case): IO is idempotent" begin
                 @test all(read_in_pngf .≈ PNGFiles.load(newpath))
+                @test all(read_in_pngf .≈ open(io->PNGFiles.load(io), newpath))
             end
         end
     end

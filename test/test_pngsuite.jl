@@ -62,8 +62,9 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
             path, ext = splitext(fpath)
             newpath = path * "_new" * ext
-
-            @test PNGFiles.save(newpath, read_in_pngf) == 0
+            
+            open(io->PNGFiles.save(io, read_in_pngf), newpath, "w") #test IO method
+            @test PNGFiles.save(newpath, read_in_pngf) == 0 
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
 
             @testset "$(case): PngSuite/ImageMagick read type equality" begin
@@ -93,6 +94,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
             end
             @testset "$(case): IO is idempotent" begin
                 @test all(read_in_pngf .≈ PNGFiles.load(newpath))
+                @test all(read_in_pngf .≈ open(io->PNGFiles.load(io), newpath))
             end
         end
     end
