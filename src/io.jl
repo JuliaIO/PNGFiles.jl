@@ -2,8 +2,8 @@
     load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
 
-Read a `.png` image from file at `fpath` or in IO stream `s`. 
-`gamma` can be used to override the automatic gamma correction, a value of 1.0 
+Read a `.png` image from file at `fpath` or in IO stream `s`.
+`gamma` can be used to override the automatic gamma correction, a value of 1.0
 means no gamma correction.
 
 The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
@@ -30,8 +30,12 @@ function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_palet
     return out
 end
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+    isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
+    Base.eof(s) && throw(EOFError())
+
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
+
     lock(s.lock)
     png_set_read_fn(png_ptr, s.handle, readcallback_c[])
     # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
@@ -213,7 +217,7 @@ const SupportedPaletteColor = Union{
          compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
     save(s::IO, image::AbstractArray;
          compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
-         
+
 Writes `image` as a png to file at `fpath`, or to IO stream `s`.
 
 ## Arguments
@@ -258,13 +262,13 @@ function save(
     info_ptr = create_info_struct(png_ptr)
 
     png_init_io(png_ptr, fp)
-    
+
     _save(png_ptr, info_ptr, image,
         compression_level=compression_level,
         compression_strategy=compression_strategy,
         filters=filters,
         palette=palette)
-    
+
     close_png(fp)
 end
 function save(
@@ -282,18 +286,19 @@ function save(
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
+    iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
 
     png_ptr = create_write_struct(png_error_fn, png_warn_fn)
     info_ptr = create_info_struct(png_ptr)
     lock(s.lock)
     png_set_write_fn(png_ptr, s.handle, writecallback_c[], C_NULL)
-    
+
     _save(png_ptr, info_ptr, image,
         compression_level=compression_level,
         compression_strategy=compression_strategy,
         filters=filters,
         palette=palette)
-    
+
     unlock(s.lock)
 end
 
@@ -309,7 +314,7 @@ function _save(png_ptr, info_ptr, image::S;
     height, width = size(image)[1:2]
     bit_depth = _get_bit_depth(image)
     color_type = _get_color_type(image)
-    
+
     png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, UInt32(filters))
     png_set_compression_level(png_ptr, compression_level)
     png_set_compression_strategy(png_ptr, compression_strategy)
