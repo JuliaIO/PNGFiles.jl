@@ -1,7 +1,5 @@
 png_error_handler(::Ptr{Cvoid}, msg::Cstring) = error("Png error: $(unsafe_string(msg))")
 png_warn_handler(::Ptr{Cvoid}, msg::Cstring) = @warn("Png warn: $(unsafe_string(msg))")
-const png_error_fn = @cfunction(png_error_handler, Cvoid, (Ptr{Cvoid}, Cstring))
-const png_warn_fn = @cfunction(png_warn_handler, Cvoid, (Ptr{Cvoid}, Cstring))
 
 # Compression strategy
 const Z_DEFAULT_STRATEGY = 0
@@ -45,7 +43,7 @@ function open_png(filename::String)
 end
 
 function create_read_struct()
-    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, C_NULL, png_error_fn, png_warn_fn)
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, C_NULL, png_error_fn_c[], png_warn_fn_c[])
     png_ptr == C_NULL && error("Failed to create png read struct")
     return png_ptr
 end
@@ -59,8 +57,8 @@ end
 close_png(fp::Ptr{Cvoid}) = ccall(:fclose, Cint, (Ptr{Cvoid},), fp)
 
 # Write functions
-function create_write_struct(png_error_fn::Ptr{Cvoid}, png_warn_fn::Ptr{Cvoid})
-    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, C_NULL, png_error_fn, png_warn_fn)
+function create_write_struct()
+    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, C_NULL, png_error_fn_c[], png_warn_fn_c[])
     png_ptr == C_NULL && error("Failed to create png write struct")
     return png_ptr
 end

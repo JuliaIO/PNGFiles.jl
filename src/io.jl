@@ -258,7 +258,7 @@ function save(
     fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
     fp == C_NULL && error("Could not open $(fpath) for writing")
 
-    png_ptr = create_write_struct(png_error_fn, png_warn_fn)
+    png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
 
     png_init_io(png_ptr, fp)
@@ -288,7 +288,7 @@ function save(
     @assert size(image, 3) <= 4
     iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
 
-    png_ptr = create_write_struct(png_error_fn, png_warn_fn)
+    png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
     lock(s.lock)
     png_set_write_fn(png_ptr, s.handle, writecallback_c[], C_NULL)
