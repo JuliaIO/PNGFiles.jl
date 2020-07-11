@@ -242,7 +242,7 @@ When `image` is an `IndirectArray` with up to 256 unique RGB colors, the result 
 function save(
     fpath::String,
     image::S;
-    compression_level::Integer = Z_NO_COMPRESSION,
+    compression_level::Integer = Z_BEST_SPEED,
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
@@ -274,7 +274,7 @@ end
 function save(
     s::IO,
     image::S;
-    compression_level::Integer = Z_NO_COMPRESSION,
+    compression_level::Integer = Z_BEST_SPEED,
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
@@ -303,7 +303,7 @@ function save(
 end
 
 function _save(png_ptr, info_ptr, image::S;
-    compression_level::Integer = Z_NO_COMPRESSION,
+    compression_level::Integer = Z_BEST_SPEED,
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
