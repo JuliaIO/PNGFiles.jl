@@ -36,13 +36,12 @@ function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Boo
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
 
-    lock(s.lock)
-    png_set_read_fn(png_ptr, s.handle, readcallback_c[])
-    # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
-    png_set_sig_bytes(png_ptr, 0)
-    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
-    unlock(s.lock)
-    return out
+    lock(s) do 
+        png_set_read_fn(png_ptr, s.handle, readcallback_c[])
+        # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
+        png_set_sig_bytes(png_ptr, 0)
+        return _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    end
 end
 
 function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cvoid
@@ -290,16 +289,16 @@ function save(
 
     png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
-    lock(s.lock)
-    png_set_write_fn(png_ptr, s.handle, writecallback_c[], C_NULL)
+    lock(s) do
+        png_set_write_fn(png_ptr, s.handle, writecallback_c[], C_NULL)
 
-    _save(png_ptr, info_ptr, image,
-        compression_level=compression_level,
-        compression_strategy=compression_strategy,
-        filters=filters,
-        palette=palette)
+        _save(png_ptr, info_ptr, image,
+            compression_level=compression_level,
+            compression_strategy=compression_strategy,
+            filters=filters,
+            palette=palette)
 
-    unlock(s.lock)
+    end
 end
 
 function _save(png_ptr, info_ptr, image::S;
