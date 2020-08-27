@@ -28,4 +28,11 @@ function __init__()
     png_warn_fn_c[] = @cfunction(png_warn_handler, Cvoid, (Ptr{Cvoid}, Cstring))
 end
 
+function _precompile_()
+    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+    @assert precompile(load, (String,))
+    # save is harder to usefully precompile because of the diversity of array types
+end
+VERSION >= v"1.4.2" && _precompile_() # https://github.com/JuliaLang/julia/pull/35378
+
 end # module
