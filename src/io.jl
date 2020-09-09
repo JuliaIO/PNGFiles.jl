@@ -33,6 +33,7 @@ end
 maybe_lock(f, io::IO) = lock(f, io)
 # IOStream doesn't support locking...
 maybe_lock(f, io::IOStream) = f()
+maybe_lock(f, io::Base.Process) = f()
 
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
