@@ -33,6 +33,7 @@ end
 maybe_lock(f, io::IO) = lock(f, io)
 # IOStream doesn't support locking...
 maybe_lock(f, io::IOStream) = f()
+maybe_lock(f, io::IOBuffer) = f()
 
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
@@ -42,7 +43,11 @@ function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Boo
     info_ptr = create_info_struct(png_ptr)
 
     maybe_lock(s) do
-        png_set_read_fn(png_ptr, s.handle, readcallback_c[])
+        if s isa IOBuffer
+            png_set_read_fn(png_ptr, pointer_from_objref(s), readcallback_iobuffer_c[])
+        else
+            png_set_read_fn(png_ptr, s.handle, readcallback_c[])
+        end
         # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
         png_set_sig_bytes(png_ptr, 0)
         return _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
@@ -52,6 +57,13 @@ end
 function _readcallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cvoid
     a = png_get_io_ptr(png_ptr)
     ccall(:ios_readall, Csize_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), a, data, length)
+    return
+end
+
+function _readcallback_iobuffer(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Cvoid
+    a = png_get_io_ptr(png_ptr)
+    io = unsafe_pointer_to_objref(a)
+    unsafe_read(io, Ptr{UInt8}(data), length)
     return
 end
 

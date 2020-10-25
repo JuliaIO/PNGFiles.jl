@@ -13,6 +13,7 @@ include(joinpath(libpng_wrap_dir, "libpng_common.jl"))
 include(joinpath(libpng_wrap_dir, "libpng_api.jl"))
 
 const readcallback_c = Ref{Ptr{Cvoid}}(C_NULL)
+const readcallback_iobuffer_c = Ref{Ptr{Cvoid}}(C_NULL)
 const writecallback_c = Ref{Ptr{Cvoid}}(C_NULL)
 const png_error_fn_c = Ref{Ptr{Cvoid}}(C_NULL)
 const png_warn_fn_c = Ref{Ptr{Cvoid}}(C_NULL)
@@ -23,6 +24,7 @@ include("io.jl")
 
 function __init__()
     readcallback_c[] = @cfunction(_readcallback, Cvoid, (png_structp, png_bytep, png_size_t));
+    readcallback_iobuffer_c[] = @cfunction(_readcallback_iobuffer, Cvoid, (png_structp, png_bytep, png_size_t));
     writecallback_c[] = @cfunction(_writecallback, Csize_t, (png_structp, png_bytep, png_size_t));
     png_error_fn_c[] = @cfunction(png_error_handler, Cvoid, (Ptr{Cvoid}, Cstring))
     png_warn_fn_c[] = @cfunction(png_warn_handler, Cvoid, (Ptr{Cvoid}, Cstring))
