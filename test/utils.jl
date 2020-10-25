@@ -23,10 +23,10 @@ _convert(C, T, xs::AbstractArray) =
 _convert(C, T, xs::AbstractMatrix) = collect(colorview(C, collect(reinterpret(T, collect(xs)))))
 
 _standardize_grayness(x) = x
-_standardize_grayness(x::AbstractArray{<:Gray{Bool}}) = convert(Array{Gray{N0f8}}, x)
+_standardize_grayness(x::AbstractArray{<:Gray{Bool}}) = Gray{N0f8}.(x)
 _standardize_grayness(x::AbstractArray{<:RGB}) = all(red.(x) .≈ green.(x) .≈ blue.(x)) ? Gray.(red.(x)) : x
 _standardize_grayness(x::AbstractArray{<:RGBA}) = all(red.(x) .≈ green.(x) .≈ blue.(x)) ?
-    convert(Array{GrayA}, colorview(GrayA, red.(x), alpha.(x))) :
+    GrayA.(colorview(GrayA, red.(x), alpha.(x))) :
     x
 
 
@@ -40,10 +40,10 @@ function plotdiffs(p, i)
     --------------|---------------|----------------------|---------------------
     ...
     """
-    _p = convert.(RGBA{Float64}, p)
+    _p = RGBA{Float64}.(p)
     __p = collect(channelview(_p))
     __p[4, :, :] .= 0.0
-    _i = convert.(RGBA{Float64}, i)
+    _i = RGBA{Float64}.(i)
     __i = collect(channelview(_i))
     __i[4, :, :] .= 1.0 # make the difference in alpha be 1 so it is visible
     d = collect(colorview(RGBA{Float64}, absdiff.(__p, __i)))

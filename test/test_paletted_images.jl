@@ -11,8 +11,8 @@ synth_paletted_imgs = [
     ("RGBA_paletted_float", IndirectArray(rand(1:100, 127, 257), rand(RGBA{Float64}, 100))),
 ]
 
-expected_img(x::Matrix{<:TransparentColor}) = convert(Array{RGBA{N0f8}}, x)
-expected_img(x::Matrix{<:AbstractRGB}) = convert(Array{RGB{N0f8}}, x)
+expected_img(x::Matrix{<:TransparentColor}) = RGBA{N0f8}.(x)
+expected_img(x::Matrix{<:AbstractRGB}) = RGB{N0f8}.(x)
 
 @testset "synthetic paletted images" begin
     for (case, image) in synth_paletted_imgs

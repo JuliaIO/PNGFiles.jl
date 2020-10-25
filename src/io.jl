@@ -40,7 +40,7 @@ function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Boo
 
     png_ptr = create_read_struct()
     info_ptr = create_info_struct(png_ptr)
-    
+
     maybe_lock(s) do
         png_set_read_fn(png_ptr, s.handle, readcallback_c[])
         # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
@@ -421,38 +421,26 @@ function _png_check_paletted(image)
 end
 
 function _prepare_buffer(x::IndirectArray{T,2,I,V}) where {T,I<:AbstractMatrix{<:UInt8},V<:OffsetVector}
-    return convert(Array{UInt8}, x.index .- (x.values.offsets[1] + 1))
+    return UInt8.(x.index .- (x.values.offsets[1] + 1))
 end
-_prepare_buffer(x::IndirectArray) = convert(Array{UInt8}, x.index .- 1)
+_prepare_buffer(x::IndirectArray) = UInt8.(x.index .- 1)
 _prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} = reinterpret(Gray{N0f8}, x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} =  reinterpret(Gray{N0f8}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt16} = reinterpret(Gray{N0f16}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Normed} = reinterpret(Gray{T}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Gray{<:AbstractFloat}} =
-    convert(Array{Gray{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:GrayA{<:AbstractFloat}} =
-    convert(Array{GrayA{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGB{<:AbstractFloat}} =
-    convert(Array{RGB{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGBA{<:AbstractFloat}} =
-    convert(Array{RGBA{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:BGR{<:AbstractFloat}} =
-    convert(Array{BGR{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:BGRA{<:AbstractFloat}} =
-    convert(Array{BGRA{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:ARGB{<:AbstractFloat}} =
-    convert(Array{ARGB{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:ABGR{<:AbstractFloat}} =
-    convert(Array{ABGR{N0f8}}, x)
-_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Union{AbstractFloat,Bool}} =
-    reinterpret(Gray{N0f8}, convert(Array{N0f8}, x))
-_prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{AbstractFloat,Bool}} =
-    __prepare_buffer(convert(Array{N0f8}, x))
-_prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{UInt8,Int8}} =
-    __prepare_buffer(reinterpret(N0f8, x))
-_prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{UInt16,Int16}} =
-    __prepare_buffer(reinterpret(N0f16, x))
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Gray{<:AbstractFloat}} =  Gray{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:GrayA{<:AbstractFloat}} = GrayA{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGB{<:AbstractFloat}} =   RGB{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGBA{<:AbstractFloat}} =  RGBA{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:BGR{<:AbstractFloat}} =   BGR{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:BGRA{<:AbstractFloat}} =  BGRA{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:ARGB{<:AbstractFloat}} =  ARGB{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:ABGR{<:AbstractFloat}} =  ABGR{N0f8}.(x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Union{AbstractFloat,Bool}} = reinterpret(Gray{N0f8}, N0f8.(x))
+_prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{AbstractFloat,Bool}} = __prepare_buffer(N0f8.(x))
+_prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{UInt8,Int8}} = __prepare_buffer(reinterpret(N0f8, x))
+_prepare_buffer(x::AbstractArray{T,3}) where {T<:Union{UInt16,Int16}} = __prepare_buffer(reinterpret(N0f16, x))
 _prepare_buffer(x::AbstractArray{T,3}) where {T<:Normed} = __prepare_buffer(x)
 
 function __prepare_buffer(x::AbstractArray{T,3}) where {T}
@@ -460,14 +448,11 @@ function __prepare_buffer(x::AbstractArray{T,3}) where {T}
     if nchannels == 1
         ifelse(ndims(x) == 3, _prepare_buffer(dropdims(x, dims=3)), x)
     elseif nchannels == 2
-        convert(Array{GrayA}, colorview(GrayA, view(x, :, :, 1), view(x, :, :, 2)))
+        GrayA.(colorview(GrayA, view(x, :, :, 1), view(x, :, :, 2)))
     elseif nchannels == 3
-        convert(Array{RGB}, colorview(RGB, view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3)))
+        RGB.(colorview(RGB, view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3)))
     elseif nchannels == 4
-        convert(
-            Array{RGBA},
-            colorview(RGBA, view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3), view(x, :, :, 4)),
-        )
+        RGBA.(colorview(RGBA, view(x, :, :, 1), view(x, :, :, 2), view(x, :, :, 3), view(x, :, :, 4)))
     else
         error("Unsupported number of channels $(nchannels) in input. Only <= 4 is expected.")
     end
@@ -516,13 +501,11 @@ function _get_color_type(
 end
 
 _standardize_palette(p::AbstractVector{<:RGB}) = p
-_standardize_palette(p::AbstractVector{<:AbstractRGB}) = convert(Vector{RGB}, p)
-_standardize_palette(p::AbstractVector{<:RGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
-_standardize_palette(p::AbstractVector{<:AbstractRGB{<:AbstractFloat}}) = convert(Vector{RGB{N0f8}}, p)
+_standardize_palette(p::AbstractVector{<:AbstractRGB}) = RGB.(p)
+_standardize_palette(p::AbstractVector{<:RGB{<:AbstractFloat}}) = RGB{N0f8}.(p)
+_standardize_palette(p::AbstractVector{<:AbstractRGB{<:AbstractFloat}}) = RGB{N0f8}.(p)
 _standardize_palette(p::OffsetArray) = _standardize_palette(parent(p))
 
 _palette_alpha(p::OffsetArray) where {T} = _palette_alpha(collect(p))
 _palette_alpha(p::AbstractVector{<:TransparentRGB{T,N0f8}}) where {T} = alpha.(p)
-function _palette_alpha(p::AbstractVector{<:TransparentRGB{T,<:AbstractFloat}}) where {T}
-    convert(Array{N0f8}, alpha.(p))
-end
+_palette_alpha(p::AbstractVector{<:TransparentRGB{T,<:AbstractFloat}}) where {T} = N0f8.(alpha.(p))
