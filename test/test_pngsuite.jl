@@ -1,4 +1,4 @@
-using Tar
+using Tar, Downloads
 
 PNG_SUITE_DIR = "PngSuite"
 PNG_SUITE_PATH = joinpath(PNG_TEST_PATH, PNG_SUITE_DIR)
@@ -29,7 +29,7 @@ const imdiff_tolerance = Dict(
 
 if !isdir(PNG_SUITE_PATH)
     mkdir(PNG_SUITE_PATH)
-    download("https://github.com/JuliaIO/PNG.jl/releases/download/PngSuite-2017jul19/PngSuite-2017jul19.tar.gz", PNG_SUITE_FILE)
+    Downloads.download("https://github.com/JuliaIO/PNG.jl/releases/download/PngSuite-2017jul19/PngSuite-2017jul19.tar.gz", PNG_SUITE_FILE)
     Tar.extract(PNG_SUITE_FILE, PNG_SUITE_PATH)
     rm(PNG_SUITE_FILE)
 end
@@ -62,9 +62,9 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
             path, ext = splitext(fpath)
             newpath = path * "_new" * ext
-            
+
             open(io->PNGFiles.save(io, read_in_pngf), newpath, "w") #test IO method
-            @test PNGFiles.save(newpath, read_in_pngf) == 0 
+            @test PNGFiles.save(newpath, read_in_pngf) == 0
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
 
             @testset "$(case): PngSuite/ImageMagick read type equality" begin
