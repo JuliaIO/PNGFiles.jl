@@ -1,6 +1,7 @@
 module PNGFiles
 # Started as a fork of https://github.com/FugroRoames/LibPNG.jl
 
+using Base64
 using ImageCore
 using IndirectArrays
 using OffsetArrays

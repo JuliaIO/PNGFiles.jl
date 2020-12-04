@@ -4,6 +4,7 @@ authors = ["Ian Butterworth", "Tomáš Drvoštěp"]
 version = "0.3.2"
 
 [deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 ImageCore = "a09fc81d-aa75-5fe9-8630-4744c3626534"
 IndirectArrays = "9b13fd28-a010-5f03-acff-a1bbcff69959"

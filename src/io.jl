@@ -34,6 +34,15 @@ maybe_lock(f, io::IO) = lock(f, io)
 # IOStream doesn't support locking...
 maybe_lock(f, io::IOStream) = f()
 maybe_lock(f, io::IOBuffer) = f()
+maybe_lock(f, io::Base64EncodePipe) = f()
+
+if VERSION < v"1.6.0-DEV.1652"
+    _iswritable(x) = Base.iswritable(x)
+    _iswritable(pipe::Base64EncodePipe) = Base.iswritable(pipe.io)
+else
+    _iswritable(x) = iswritable(x)
+end
+
 
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
@@ -302,12 +311,12 @@ function save(
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
-    iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
+    _iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
 
     png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
     maybe_lock(s) do
-        png_set_write_fn(png_ptr, s.handle, writecallback_c[], C_NULL)
+        png_set_write_fn(png_ptr, s, writecallback_c[], C_NULL)
 
         _save(png_ptr, info_ptr, image,
             compression_level=compression_level,
@@ -404,7 +413,8 @@ end
 
 function _writecallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Csize_t
     a = png_get_io_ptr(png_ptr)
-    return ccall(:ios_write, Csize_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), a, data, length)
+    io = unsafe_pointer_to_objref(a)
+    unsafe_write(io, data, length)
 end
 
 function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T}
