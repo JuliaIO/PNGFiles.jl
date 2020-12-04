@@ -48,6 +48,7 @@ end
     include("test_paletted_images.jl")
     include("test_synthetic_images.jl")
     include("test_testimages.jl")
+    include("test_io.jl")
 end
 
 # Cleanup
