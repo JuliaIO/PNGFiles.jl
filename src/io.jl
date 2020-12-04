@@ -34,6 +34,15 @@ maybe_lock(f, io::IO) = lock(f, io)
 # IOStream doesn't support locking...
 maybe_lock(f, io::IOStream) = f()
 maybe_lock(f, io::IOBuffer) = f()
+maybe_lock(f, io::Base64EncodePipe) = f()
+
+if VERSION < v"1.6.0-DEV.1652"
+    _iswritable(x) = Base.iswritable(x)
+    _iswritable(pipe::Base64EncodePipe) = Base.iswritable(pipe.io)
+else
+    _iswritable(x) = iswritable(x)
+end
+
 
 function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
@@ -302,7 +311,7 @@ function save(
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
-    iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
+    _iswritable(s) || throw(ArgumentError("write failed, IOStream is not writeable"))
 
     png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
