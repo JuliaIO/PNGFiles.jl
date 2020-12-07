@@ -35,6 +35,7 @@ maybe_lock(f, io::IO) = lock(f, io)
 maybe_lock(f, io::IOStream) = f()
 maybe_lock(f, io::IOBuffer) = f()
 maybe_lock(f, io::Base64EncodePipe) = f()
+maybe_lock(f, io::IOContext) = maybe_lock(f, io.io)
 
 if VERSION < v"1.6.0-DEV.1652"
     _iswritable(x) = Base.iswritable(x)
