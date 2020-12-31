@@ -199,10 +199,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         PNG_HEADER_VERSION_STRING
     )
 
-    png_read_image(png_ptr, map(pointer, eachcol(buffer)))
-    png_read_end(png_ptr, info_ptr)
-    png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
-    buffer = permutedims(buffer, (2, 1))
+    buffer = Base.invokelatest(_load!, buffer, png_ptr, info_ptr)
     if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
         return buffer
     else
@@ -210,6 +207,13 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         # Using UInt16 for index would cost us large part of the savings provided by IndirectArray.
         return IndirectArray(buffer, OffsetArray(palette, -1))
     end
+end
+
+function _load!(buffer::Matrix{T}, png_ptr, info_ptr) where T    # separate to support precompilation of permutedims
+    png_read_image(png_ptr, map(pointer, eachcol(buffer)))
+    png_read_end(png_ptr, info_ptr)
+    png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
+    return permutedims(buffer, (2, 1))
 end
 
 function _buffer_color_type(color_type, bit_depth)
