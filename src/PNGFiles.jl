@@ -34,7 +34,11 @@ end
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
     @assert precompile(load, (String,))
-    # save is harder to usefully precompile because of the diversity of array types
+    eltypes = Any[UInt8, Gray{N0f8}, Gray{N0f16}, GrayA{N0f8}, GrayA{N0f16}, RGB{N0f8}, RGB{N0f16}, RGBA{N0f8}, RGBA{N0f16}]
+    for T in eltypes
+        @assert precompile(_load!, (Matrix{T}, Ptr{Nothing}, Ptr{Nothing}))
+        @assert precompile(save, (String, Matrix{T}))
+    end
 end
 VERSION >= v"1.4.2" && _precompile_() # https://github.com/JuliaLang/julia/pull/35378
 
