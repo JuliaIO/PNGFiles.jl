@@ -420,8 +420,8 @@ end
 
 function _writecallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Csize_t
     a = png_get_io_ptr(png_ptr)
-    io = unsafe_pointer_to_objref(a)
-    unsafe_write(io[], data, length)
+    io = unsafe_load(Ptr{Any}(a))
+    unsafe_write(io, data, length)
 end
 
 function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T}
