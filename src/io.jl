@@ -321,7 +321,11 @@ function save(
     png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
     maybe_lock(s) do
-        png_set_write_fn(png_ptr, s, writecallback_c[], C_NULL)
+        if s isa IOContext
+            png_set_write_fn(png_ptr, s.io, writecallback_c[], C_NULL)
+        else
+            png_set_write_fn(png_ptr, s, writecallback_c[], C_NULL)
+        end
 
         _save(png_ptr, info_ptr, image,
             compression_level=compression_level,
