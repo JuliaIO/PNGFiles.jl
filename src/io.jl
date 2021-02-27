@@ -321,14 +321,16 @@ function save(
     png_ptr = create_write_struct()
     info_ptr = create_info_struct(png_ptr)
     maybe_lock(s) do
-        png_set_write_fn(png_ptr, s, writecallback_c[], C_NULL)
+        r = Ref{Any}(s)
+        GC.@preserve r begin
+            png_set_write_fn(png_ptr, r, writecallback_c[], C_NULL)
 
-        _save(png_ptr, info_ptr, image,
-            compression_level=compression_level,
-            compression_strategy=compression_strategy,
-            filters=filters,
-            palette=palette)
-
+            _save(png_ptr, info_ptr, image,
+                compression_level=compression_level,
+                compression_strategy=compression_strategy,
+                filters=filters,
+                palette=palette)
+        end
     end
 end
 
@@ -418,7 +420,7 @@ end
 
 function _writecallback(png_ptr::png_structp, data::png_bytep, length::png_size_t)::Csize_t
     a = png_get_io_ptr(png_ptr)
-    io = unsafe_pointer_to_objref(a)
+    io = unsafe_load(Ptr{Any}(a))
     unsafe_write(io, data, length)
 end
 
