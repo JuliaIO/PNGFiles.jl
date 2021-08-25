@@ -1275,7 +1275,7 @@ end
 
 const png_image = __JL_Ctag_7
 
-const png_imagep = __JL_Ctag_7
+const png_imagep = Ptr{__JL_Ctag_7}
 
 function png_image_begin_read_from_file(image, file_name)
     ccall((:png_image_begin_read_from_file, libpng), Cint, (png_imagep, Cstring), image, file_name)
