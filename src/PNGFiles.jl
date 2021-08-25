@@ -9,9 +9,10 @@ using libpng_jll
 
 libpng_wrap_dir = joinpath(@__DIR__, "..", "gen", "libpng")
 using CEnum
-include(joinpath(libpng_wrap_dir, "ctypes.jl"))
-include(joinpath(libpng_wrap_dir, "libpng_common.jl"))
-include(joinpath(libpng_wrap_dir, "libpng_api.jl"))
+# include(joinpath(libpng_wrap_dir, "ctypes.jl"))
+# include(joinpath(libpng_wrap_dir, "libpng_common.jl"))
+# include(joinpath(libpng_wrap_dir, "libpng_api.jl"))
+include(joinpath(libpng_wrap_dir, "libpng.jl"))
 
 const readcallback_c = Ref{Ptr{Cvoid}}(C_NULL)
 const readcallback_iobuffer_c = Ref{Ptr{Cvoid}}(C_NULL)

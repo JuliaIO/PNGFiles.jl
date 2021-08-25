@@ -1,40 +1,25 @@
-libname = "libpng"
-
-using Pkg; Pkg.add("libpng_jll")
-
+using Clang.Generators
 using libpng_jll
-jllroot = dirname(dirname(libpng_jll.libpng_path))
 
-using Clang
-const LIB_INCLUDE = joinpath(jllroot, "include") |> normpath
-#const HEADERS = filter(x->endswith(x, ".h"), readdir(LIB_INCLUDE))
-const HEADERS = ["pngconf.h", "pnglibconf.h", "png.h"]
-const LIB_HEADERS = [joinpath(LIB_INCLUDE, header) for header in HEADERS]
+cd(@__DIR__)
 
-#Copy headers for easy reference
-refdir = joinpath.(@__DIR__, "ref_headers")
-!isdir(refdir) && mkdir(refdir)
-refpaths = joinpath.(refdir, basename.(LIB_HEADERS))
-cp.(LIB_HEADERS, refpaths, follow_symlinks=true, force=true)
+include_dir = joinpath(libpng_jll.artifact_dir, "include") |> normpath
 
-wc = init(; headers = LIB_HEADERS,
-            output_file = joinpath(@__DIR__, "$(libname)_api.jl"),
-            common_file = joinpath(@__DIR__, "$(libname)_common.jl"),
-            clang_includes = vcat(LIB_INCLUDE, CLANG_INCLUDE),
-            clang_args = ["-I", joinpath(LIB_INCLUDE, ".."), "-DPNG_FLOATING_POINT_SUPPORTED"],
-            header_wrapped = (root, current)->root == current,
-            header_library = x->libname,
-            clang_diagnostics = true,
-            )
+# wrapper generator options
+options = load_options(joinpath(@__DIR__, "generator.toml"))
 
-run(wc)
-rm(joinpath(@__DIR__, "LibTemplate.jl"))
+args = get_default_args()
+push!(args, "-I$include_dir", "-DPNG_FLOATING_POINT_SUPPORTED")
 
-#Manual fixes
+header_dir = include_dir
+headers = [joinpath(header_dir, "png.h")]
 
-# Add to top of *_common.jl
+# Skip time_t and jmp_buf
+@add_def time_t
+@add_def jmp_buf
 
-# # Manually added
-# const PNGCAPI = nothing
-# const PNG_BYTES_TO_CHECK = 8
-# const png_FILE_p = Ptr{Cvoid}
+# create context
+ctx = create_context(headers, args, options)
+
+# run generator
+build!(ctx)
