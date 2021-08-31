@@ -654,7 +654,7 @@ function png_get_error_ptr(png_ptr)
 end
 
 function png_set_write_fn(png_ptr, io_ptr, write_data_fn, output_flush_fn)
-    ccall((:png_set_write_fn, libpng), Cvoid, (png_structrp, png_voidp, png_rw_ptr, png_flush_ptr), png_ptr, io_ptr, write_data_fn, output_flush_fn)
+    ccall((:png_set_write_fn, libpng), Cvoid, (png_structrp, Any, png_rw_ptr, png_flush_ptr), png_ptr, io_ptr, write_data_fn, output_flush_fn)
 end
 
 function png_set_read_fn(png_ptr, io_ptr, read_data_fn)
