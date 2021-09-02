@@ -1,40 +1,44 @@
-libname = "libpng"
-
-using Pkg; Pkg.add("libpng_jll")
-
+using Clang.Generators
 using libpng_jll
-jllroot = dirname(dirname(libpng_jll.libpng_path))
 
-using Clang
-const LIB_INCLUDE = joinpath(jllroot, "include") |> normpath
-#const HEADERS = filter(x->endswith(x, ".h"), readdir(LIB_INCLUDE))
-const HEADERS = ["pngconf.h", "pnglibconf.h", "png.h"]
-const LIB_HEADERS = [joinpath(LIB_INCLUDE, header) for header in HEADERS]
+function rewrite(ex::Expr)
+    if Meta.isexpr(ex, :function) && ex.args[1].args[1] == :png_set_write_fn
+        ex = quote
+            function png_set_write_fn(png_ptr, io_ptr, write_data_fn, output_flush_fn)
+                ccall((:png_set_write_fn, libpng), Cvoid, (png_structrp, Any, png_rw_ptr, png_flush_ptr), png_ptr, io_ptr, write_data_fn, output_flush_fn)
+            end
+        end |> Base.remove_linenums!
+        ex.args[]
+    else
+        ex
+    end
+end
 
-#Copy headers for easy reference
-refdir = joinpath.(@__DIR__, "ref_headers")
-!isdir(refdir) && mkdir(refdir)
-refpaths = joinpath.(refdir, basename.(LIB_HEADERS))
-cp.(LIB_HEADERS, refpaths, follow_symlinks=true, force=true)
+cd(@__DIR__)
 
-wc = init(; headers = LIB_HEADERS,
-            output_file = joinpath(@__DIR__, "$(libname)_api.jl"),
-            common_file = joinpath(@__DIR__, "$(libname)_common.jl"),
-            clang_includes = vcat(LIB_INCLUDE, CLANG_INCLUDE),
-            clang_args = ["-I", joinpath(LIB_INCLUDE, ".."), "-DPNG_FLOATING_POINT_SUPPORTED"],
-            header_wrapped = (root, current)->root == current,
-            header_library = x->libname,
-            clang_diagnostics = true,
-            )
+include_dir = joinpath(libpng_jll.artifact_dir, "include") |> normpath
 
-run(wc)
-rm(joinpath(@__DIR__, "LibTemplate.jl"))
+# wrapper generator options
+options = load_options(joinpath(@__DIR__, "generator.toml"))
 
-#Manual fixes
+args = get_default_args()
+push!(args, "-I$include_dir", "-DPNG_FLOATING_POINT_SUPPORTED")
 
-# Add to top of *_common.jl
+header_dir = include_dir
+headers = [joinpath(header_dir, "png.h")]
 
-# # Manually added
-# const PNGCAPI = nothing
-# const PNG_BYTES_TO_CHECK = 8
-# const png_FILE_p = Ptr{Cvoid}
+# Skip time_t and jmp_buf
+@add_def time_t
+@add_def jmp_buf
+
+# create context
+ctx = create_context(headers, args, options)
+
+# run generator
+build!(ctx, BUILDSTAGE_NO_PRINTING)
+for node in get_nodes(ctx.dag)
+    for (i, expr) in enumerate(node.exprs)
+        node.exprs[i] = rewrite(expr)
+    end
+end
+build!(ctx, BUILDSTAGE_PRINTING_ONLY)
