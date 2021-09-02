@@ -3,6 +3,7 @@ using libpng_jll
 
 function rewrite(ex::Expr)
     if Meta.isexpr(ex, :function) && ex.args[1].args[1] == :png_set_write_fn
+        # https://github.com/JuliaIO/PNGFiles.jl/pull/27
         ex = quote
             function png_set_write_fn(png_ptr, io_ptr, write_data_fn, output_flush_fn)
                 ccall((:png_set_write_fn, libpng), Cvoid, (png_structrp, Any, png_rw_ptr, png_flush_ptr), png_ptr, io_ptr, write_data_fn, output_flush_fn)
