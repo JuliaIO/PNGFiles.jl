@@ -449,10 +449,7 @@ function _png_check_paletted(image)
     end
 end
 
-function _prepare_buffer(x::IndirectArray{T,2,I,V}) where {T,I<:AbstractMatrix{<:UInt8},V<:OffsetVector}
-    return UInt8.(x.index .- (x.values.offsets[1] + 1))
-end
-_prepare_buffer(x::IndirectArray) = UInt8.(x.index .- 1)
+_prepare_buffer(x::IndirectArray) = UInt8.(x.index .- first(axes(x.values, 1)))
 _prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} =  reinterpret(Gray{N0f8}, x)
