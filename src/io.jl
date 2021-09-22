@@ -180,7 +180,6 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     @debug(
         "Read PNG info:",
-        fpath,
         height,
         width,
         color_type_orig,
