@@ -41,7 +41,16 @@ function _add_debugging_entry(fpath, case, imdiff_val=missing)
     end
 end
 
+function ensure_imagemagick()
+    # ImageMagick backend itself might be broken
+    # https://github.com/JuliaIO/ImageMagick.jl/issues/206
+    tmpfile = joinpath(PNG_TEST_PATH, "tmp.png")
+    img = Gray{N0f8}.(reshape(collect(0.0:0.01:0.49), 5, 10))
+    ImageMagick.save(tmpfile, img)
+    @test ImageMagick.load(tmpfile) == img
+end
 
+ensure_imagemagick()
 @testset "PNGFiles" begin
     include("test_invalid_inputs.jl")
     include("test_pngsuite.jl")
