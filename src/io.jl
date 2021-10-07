@@ -22,6 +22,7 @@ be represented as an `IndirectArray` with `OffsetArray` `values` field. To alway
 function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
+    @debug "Load PNG File:" fpath png_ptr
     info_ptr = create_info_struct(png_ptr)
     png_init_io(png_ptr, fp)
     png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
@@ -180,7 +181,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     @debug(
         "Read PNG info:",
-        fpath,
+        png_ptr,
         height,
         width,
         color_type_orig,
@@ -289,6 +290,7 @@ function save(
     fp == C_NULL && error("Could not open $(fpath) for writing")
 
     png_ptr = create_write_struct()
+    @debug "Save PNG File:" fpath png_ptr
     info_ptr = create_info_struct(png_ptr)
 
     png_init_io(png_ptr, fp)
@@ -383,7 +385,7 @@ function _save(png_ptr, info_ptr, image::S;
 
     @debug(
         "Write PNG info:",
-        fpath,
+        png_ptr,
         height,
         width,
         bit_depth,
