@@ -345,6 +345,7 @@ function _save(png_ptr, info_ptr, image::S;
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
 }
+    image = _enforce_dense_cpu_array(image)
     height, width = size(image)[1:2]
     bit_depth = _get_bit_depth(image)
     color_type = _get_color_type(image)
@@ -485,6 +486,19 @@ function __prepare_buffer(x::AbstractArray{T,3}) where {T}
         error("Unsupported number of channels $(nchannels) in input. Only <= 4 is expected.")
     end
 end
+
+# On performance: if the array type has efficient convert method to Array then this is
+# almost a no-op
+function _enforce_dense_cpu_array(img::AbstractArray)
+    if Base.has_offset_axes(img)
+        convert(Array, OffsetArrays.no_offset_view(img))
+    else
+        convert(Array, img)
+    end
+end
+_enforce_dense_cpu_array(img::DenseArray) = img
+_enforce_dense_cpu_array(img::OffsetArray) = _enforce_dense_cpu_array(parent(img))
+_enforce_dense_cpu_array(img::IndirectArray) = img # PNGFiles has built-in support for this type
 
 _get_bit_depth(img::BitArray) = 8  # TODO: write 1 bit-depth images
 _get_bit_depth(img::AbstractArray{C}) where {C<:Colorant} = __get_bit_depth(eltype(C))
