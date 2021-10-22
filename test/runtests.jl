@@ -58,6 +58,7 @@ ensure_imagemagick()
     include("test_synthetic_images.jl")
     include("test_testimages.jl")
     include("test_io.jl")
+    include("test_various_array_types.jl")
 end
 
 # Cleanup
