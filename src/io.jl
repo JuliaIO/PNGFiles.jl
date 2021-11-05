@@ -367,7 +367,7 @@ function _save(png_ptr, info_ptr, image::S;
         end
     else
         image_eltype = eltype(image)
-        if (image_eltype <: BGR || image_eltype <: BGRA || image_eltype <: ABGR)
+        if (image_eltype <: BGR || image_eltype <: BGRA || image_eltype <: ABGR || image_eltype <: ARGB32)
             png_set_bgr(png_ptr)
         end
 
@@ -515,14 +515,11 @@ _get_bit_depth(img::AbstractArray{<:Bool}) = 8  # TODO: write 1 bit-depth images
 _get_bit_depth(img::AbstractArray{<:UInt8}) = 8
 _get_bit_depth(img::AbstractArray{<:UInt16}) = 16
 
-_get_color_type(x::AbstractArray{<:Gray{T}}) where {T} = PNG_COLOR_TYPE_GRAY
-_get_color_type(x::AbstractArray{<:GrayA{T}}) where {T} = PNG_COLOR_TYPE_GRAY_ALPHA
-_get_color_type(x::AbstractArray{<:RGB{T}}) where {T} = PNG_COLOR_TYPE_RGB
-_get_color_type(x::AbstractArray{<:RGBA{T}}) where {T} = PNG_COLOR_TYPE_RGBA
-_get_color_type(x::AbstractArray{<:BGR{T}}) where {T} = PNG_COLOR_TYPE_RGB
-_get_color_type(x::AbstractArray{<:BGRA{T}}) where {T} = PNG_COLOR_TYPE_RGBA
-_get_color_type(x::AbstractArray{<:ARGB{T}}) where {T} = PNG_COLOR_TYPE_RGBA
-_get_color_type(x::AbstractArray{<:ABGR{T}}) where {T} = PNG_COLOR_TYPE_RGBA
+_get_color_type(x::AbstractArray{<:Gray}) = PNG_COLOR_TYPE_GRAY
+_get_color_type(x::AbstractArray{<:GrayA}) = PNG_COLOR_TYPE_GRAY_ALPHA
+_get_color_type(x::AbstractArray{<:AbstractRGB}) = PNG_COLOR_TYPE_RGB
+_get_color_type(x::AbstractArray{<:AbstractARGB}) = PNG_COLOR_TYPE_RGBA
+_get_color_type(x::AbstractArray{<:AbstractRGBA}) = PNG_COLOR_TYPE_RGBA
 _get_color_type(x::IndirectArray) = PNG_COLOR_TYPE_PALETTE
 function _get_color_type(
         x::AbstractArray{T, N}

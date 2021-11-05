@@ -33,6 +33,7 @@ synth_imgs = [
     "GrayA" => rand(GrayA, 127, 257),
     "RGB" => rand(RGB, 127, 257),
     "RGBA" => rand(RGBA, 127, 257),
+    "ARGB32" => reinterpret(ARGB32, rand(UInt32, 127, 257)),
     "Gray-N0f8" => rand(Gray{N0f8}, 127, 257),
     "GrayA-N0f8" => rand(GrayA{N0f8}, 127, 257),
     "RGB-N0f8" => rand(RGB{N0f8}, 127, 257),
@@ -88,7 +89,7 @@ edge_case_imgs = [
                 @test typeof(read_in_pngf) <: AbstractMatrix
             end
             @testset "compare" begin
-                @test all(expected .≈ read_in_pngf)
+                @test eltype(eltype(expected)) <: N0f8 ? expected == read_in_pngf : all(expected .≈ read_in_pngf)
             end
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
             @testset "$(case): ImageMagick read type equality" begin
