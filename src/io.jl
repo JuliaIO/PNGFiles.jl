@@ -371,7 +371,7 @@ function _save(png_ptr, info_ptr, image::S;
             png_set_bgr(png_ptr)
         end
 
-        if (image_eltype <: ABGR || image_eltype <: ARGB)
+        if image_eltype <: AbstractARGB
             png_set_swap_alpha(png_ptr)
         end
 
@@ -455,6 +455,7 @@ end
 _prepare_buffer(x::IndirectArray) = UInt8.(x.index .- first(axes(x.values, 1)))
 _prepare_buffer(x::BitArray) = _prepare_buffer(collect(x))
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
+_prepare_buffer(x::AbstractMatrix{ARGB32}) = ARGB{N0f8}.(x)   # unclear why this helps (maybe endianness?)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} =  reinterpret(Gray{N0f8}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt16} = reinterpret(Gray{N0f16}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Normed} = reinterpret(Gray{T}, x)
@@ -515,14 +516,11 @@ _get_bit_depth(img::AbstractArray{<:Bool}) = 8  # TODO: write 1 bit-depth images
 _get_bit_depth(img::AbstractArray{<:UInt8}) = 8
 _get_bit_depth(img::AbstractArray{<:UInt16}) = 16
 
-_get_color_type(x::AbstractArray{<:Gray{T}}) where {T} = PNG_COLOR_TYPE_GRAY
-_get_color_type(x::AbstractArray{<:GrayA{T}}) where {T} = PNG_COLOR_TYPE_GRAY_ALPHA
-_get_color_type(x::AbstractArray{<:RGB{T}}) where {T} = PNG_COLOR_TYPE_RGB
-_get_color_type(x::AbstractArray{<:RGBA{T}}) where {T} = PNG_COLOR_TYPE_RGBA
-_get_color_type(x::AbstractArray{<:BGR{T}}) where {T} = PNG_COLOR_TYPE_RGB
-_get_color_type(x::AbstractArray{<:BGRA{T}}) where {T} = PNG_COLOR_TYPE_RGBA
-_get_color_type(x::AbstractArray{<:ARGB{T}}) where {T} = PNG_COLOR_TYPE_RGBA
-_get_color_type(x::AbstractArray{<:ABGR{T}}) where {T} = PNG_COLOR_TYPE_RGBA
+_get_color_type(x::AbstractArray{<:Gray}) = PNG_COLOR_TYPE_GRAY
+_get_color_type(x::AbstractArray{<:GrayA}) = PNG_COLOR_TYPE_GRAY_ALPHA
+_get_color_type(x::AbstractArray{<:AbstractRGB}) = PNG_COLOR_TYPE_RGB
+_get_color_type(x::AbstractArray{<:AbstractARGB}) = PNG_COLOR_TYPE_RGBA
+_get_color_type(x::AbstractArray{<:AbstractRGBA}) = PNG_COLOR_TYPE_RGBA
 _get_color_type(x::IndirectArray) = PNG_COLOR_TYPE_PALETTE
 function _get_color_type(
         x::AbstractArray{T, N}
