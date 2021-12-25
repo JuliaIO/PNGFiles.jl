@@ -1,10 +1,3 @@
-# A dummy struct used to easily collect alpha values for paletted images. It allows us to simply
-# call `pointer_from_objref` on a `Vector{_AlphaBuffer}`
-struct _AlphaBuffer
-    val::N0f8
-end
-
-
 function _inspect_png_read(fpath, gamma::Union{Nothing,Float64}=nothing)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
