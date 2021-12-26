@@ -172,8 +172,8 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
             GC.@preserve alpha_buffer begin
                 png_get_tRNS(png_ptr, info_ptr, pointer_from_objref(alpha_buffer), alphas_cnt, C_NULL)
             end
-            alpha_buffer[alphas_cnt[]+1:palette_length[]] .= N0f8(1)  # palette entries are opaque by default
-            palette = map(x->RGBA(x[1], x[2]), zip(palette, alpha_buffer))
+            alpha_buffer[alphas_cnt[]+1:palette_length[]] .= one(N0f8)  # palette entries are opaque by default
+            palette = map(RGBA, palette, alpha_buffer)
         end
         buffer_eltype = UInt8
     end
@@ -207,7 +207,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         valid_PLTE,
         PNG_HEADER_VERSION_STRING
     )
-
+    
     GC.@preserve buffer begin
         buffer = Base.invokelatest(_load!, buffer, png_ptr, info_ptr)
     end
