@@ -80,44 +80,49 @@ end
 
 function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
     png_read_info(png_ptr, info_ptr)
+    flags = png_get_valid(
+        png_ptr, info_ptr,
+        PNG_INFO_sRGB | PNG_INFO_gAMA | PNG_INFO_tRNS | PNG_INFO_cHRM | PNG_INFO_bKGD | PNG_INFO_PLTE
+    )
+    valid_sRGB = (flags & PNG_INFO_sRGB) != 0
+    valid_gAMA = (flags & PNG_INFO_gAMA) != 0
+    valid_tRNS = (flags & PNG_INFO_tRNS) != 0
+    valid_cHRM = (flags & PNG_INFO_cHRM) != 0
+    valid_bKGD = (flags & PNG_INFO_bKGD) != 0
+    valid_PLTE = (flags & PNG_INFO_PLTE) != 0
 
     width = png_get_image_width(png_ptr, info_ptr)
     height = png_get_image_height(png_ptr, info_ptr)
-    color_type_orig = png_get_color_type(png_ptr, info_ptr)
-    color_type = color_type_orig
-    bit_depth_orig = png_get_bit_depth(png_ptr, info_ptr)
-    bit_depth = bit_depth_orig
+    color_type = color_type_orig = png_get_color_type(png_ptr, info_ptr)
+    bit_depth = bit_depth_orig = png_get_bit_depth(png_ptr, info_ptr)
     num_channels = png_get_channels(png_ptr, info_ptr)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
 
-    # TODO: verify this is needed
-    backgroundp = png_color_16p()
-    if png_get_bKGD(png_ptr, info_ptr, Ptr{png_color_16p}(backgroundp)) != 0
-        png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
+    if valid_bKGD
+        backgroundp = png_color_16p()
+        if png_get_bKGD(png_ptr, info_ptr, Ptr{png_color_16p}(backgroundp)) != 0
+            png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.)
+        end
     end
 
     screen_gamma = PNG_DEFAULT_sRGB
     image_gamma = Ref{Cdouble}(-1.0)
     intent = Ref{Cint}(-1)
     if isnothing(gamma)
-        if png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) != 0
+        if valid_sRGB
             if png_get_sRGB(png_ptr, info_ptr, intent) != 0
-                png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+                png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB)
             else
-                if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
-                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
-                else
+                if png_get_gAMA(png_ptr, info_ptr, image_gamma) == 0
                     image_gamma[] = 0.45455
-                    png_set_gamma(png_ptr, screen_gamma, image_gamma[])
                 end
-            end
-        elseif png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) != 0
-            if png_get_gAMA(png_ptr, info_ptr, image_gamma) != 0
                 png_set_gamma(png_ptr, screen_gamma, image_gamma[])
-            else
+            end
+        elseif valid_gAMA
+            if png_get_gAMA(png_ptr, info_ptr, image_gamma) == 0
                 image_gamma[] = 0.45455
-                png_set_gamma(png_ptr, screen_gamma, image_gamma[])
             end
+            png_set_gamma(png_ptr, screen_gamma, image_gamma[])
         end
     elseif gamma != 1
         image_gamma[] = gamma
@@ -126,7 +131,8 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     read_as_paletted = !expand_paletted &&
         color_type == PNG_COLOR_TYPE_PALETTE &&
-        bit_depth == 8
+        bit_depth == 8 && 
+        valid_PLTE
 
     if !read_as_paletted
         if color_type == PNG_COLOR_TYPE_PALETTE
@@ -140,7 +146,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
             bit_depth = 8
         end
 
-        if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
+        if valid_tRNS
             png_set_tRNS_to_alpha(png_ptr)
             if color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_RGB
                 color_type |= PNG_COLOR_MASK_ALPHA
@@ -160,7 +166,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         png_get_PLTE(png_ptr, info_ptr, pointer_from_objref(palette_buffer), palette_length)
         palette = palette_buffer[1:palette_length[]]
 
-        if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS) != 0
+        if valid_tRNS
             alpha_buffer = Vector{_AlphaBuffer}(undef, palette_length[])
             alphas_cnt = Ref{Cint}()
             png_get_tRNS(png_ptr, info_ptr, pointer_from_objref(alpha_buffer), alphas_cnt, C_NULL)
@@ -197,6 +203,12 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         read_as_paletted,
         n_passes,
         buffer_eltype,
+        valid_sRGB,
+        valid_gAMA,
+        valid_tRNS,
+        valid_cHRM,
+        valid_bKGD,
+        valid_PLTE,
         PNG_HEADER_VERSION_STRING
     )
 
@@ -382,7 +394,7 @@ function _save(png_ptr, info_ptr, image::S;
     end
 
     # gAMA and cHRM chunks should be always present for compatibility with older systems
-    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, 0)
+    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_PERCEPTUAL)
 
     @debug(
         "Write PNG info:",

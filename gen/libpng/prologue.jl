@@ -1,4 +1,9 @@
-## TODO: pending https://github.com/JuliaLang/julia/issues/29420
+##############################################
+# This file has been automatically generated #
+# Do not edit !                              #
+##############################################
+
+# TODO: pending https://github.com/JuliaLang/julia/issues/29420
 
 const PNGCAPI = nothing
 const PNG_BYTES_TO_CHECK = 8
