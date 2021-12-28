@@ -7,4 +7,5 @@ Manifest.toml
 /test/temp
 /test/_debugfile.jl
 *.png
+!test/test_images/*.png
 test/_debugfile.jmd

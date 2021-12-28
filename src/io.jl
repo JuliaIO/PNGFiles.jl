@@ -160,24 +160,24 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     # Gamma correction is applied to a palette after `png_read_update_info` is called
     if read_as_paletted
+        # TODO: Figure out the length of palette before calling png_get_PLTEs
+        #    `png_get_palette_max(png_ptr, info_ptr)`` seems like a good option
+        #    I can't make it work (I only ever get it to return zero). Note that it
+        #    has to be called after png_read_image / png_read_png.
         palette_length = Ref{Cint}()
-        # TODO: Figure out the lenght of paletted before calling png_get_PLTEs
         palette_buffer = Vector{RGB{N0f8}}(undef, PNG_MAX_PALETTE_LENGTH)
-        png_get_PLTE(png_ptr, info_ptr, pointer_from_objref(palette_buffer), palette_length)
-        palette = palette_buffer[1:palette_length[]]
-
+        GC.@preserve palette_buffer begin
+            png_get_PLTE(png_ptr, info_ptr, pointer_from_objref(palette_buffer), palette_length)
+            palette = palette_buffer[1:palette_length[]]
+        end
         if valid_tRNS
-            alpha_buffer = Vector{_AlphaBuffer}(undef, palette_length[])
+            alpha_buffer = Vector{N0f8}(undef, palette_length[])
             alphas_cnt = Ref{Cint}()
-            png_get_tRNS(png_ptr, info_ptr, pointer_from_objref(alpha_buffer), alphas_cnt, C_NULL)
-            if alphas_cnt[] > 1
-                palette = map(x->RGBA(x[1], x[2].val), zip(palette, alpha_buffer))
-            else
-                # Seems that if there is only one transparency entry, it is applied to the first
-                # color in palette while the rest of the colors are opaque
-                α = alpha_buffer[1].val
-                palette = map(x->RGBA(x[2], x[1] == 1 ? α : 1), enumerate(palette))
+            GC.@preserve alpha_buffer begin
+                png_get_tRNS(png_ptr, info_ptr, pointer_from_objref(alpha_buffer), alphas_cnt, C_NULL)
             end
+            alpha_buffer[alphas_cnt[]+1:palette_length[]] .= one(N0f8)  # palette entries are opaque by default
+            palette = map(RGBA, palette, alpha_buffer)
         end
         buffer_eltype = UInt8
     end
@@ -212,7 +212,10 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         PNG_HEADER_VERSION_STRING
     )
 
-    buffer = Base.invokelatest(_load!, buffer, png_ptr, info_ptr)
+    GC.@preserve buffer begin
+        buffer = Base.invokelatest(_load!, buffer, png_ptr, info_ptr)
+    end
+
     if expand_paletted || color_type != PNG_COLOR_TYPE_PALETTE
         return buffer
     else
