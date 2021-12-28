@@ -160,7 +160,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     # Gamma correction is applied to a palette after `png_read_update_info` is called
     if read_as_paletted
-        # TODO: Figure out the lenght of palette before calling png_get_PLTEs
+        # TODO: Figure out the length of palette before calling png_get_PLTEs
         #    `png_get_palette_max(png_ptr, info_ptr)`` seems like a good option
         #    I can't make it work (I only ever get it to return zero). Note that it
         #    has to be called after png_read_image / png_read_png.
