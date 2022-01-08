@@ -1,3 +1,5 @@
+_nextpow2exp(n) = (8 * sizeof(n) - leading_zeros(n) - (count_ones(n) == 1))
+
 function _inspect_png_read(fpath, gamma::Union{Nothing,Float64}=nothing)
     fp = open_png(fpath)
     png_ptr = create_read_struct()

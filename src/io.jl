@@ -364,10 +364,12 @@ function _save(png_ptr, info_ptr, image::S;
     height, width = size(image)[1:2]
     bit_depth = _get_bit_depth(image)
     color_type = _get_color_type(image)
+    approx_bytes = round(Int, (height + 1) * width * bit_depth / 8 * (((color_type | PNG_COLOR_MASK_COLOR > 0) ? 3 : 1) + (color_type | PNG_COLOR_MASK_ALPHA > 0)))
 
     png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, UInt32(filters))
     png_set_compression_level(png_ptr, compression_level)
     png_set_compression_strategy(png_ptr, compression_strategy)
+    png_set_compression_window_bits(png_ptr, min(15, max(8, _nextpow2exp(approx_bytes))))
 
     if color_type == PNG_COLOR_TYPE_PALETTE
         # TODO: 1, 2, 4 bit-depth indices for palleted
