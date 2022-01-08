@@ -291,7 +291,7 @@ function save(
     compression_level::Integer = Z_BEST_SPEED,
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
-    palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
+    file_gamma::Union{Nothing,Float64} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -314,7 +314,8 @@ function save(
         compression_level=compression_level,
         compression_strategy=compression_strategy,
         filters=filters,
-        palette=palette)
+        file_gamma=file_gamma,
+    )
 
     close_png(fp)
 end
@@ -324,7 +325,7 @@ function save(
     compression_level::Integer = Z_BEST_SPEED,
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
-    palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
+    file_gamma::Union{Nothing,Float64} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -346,7 +347,8 @@ function save(
                 compression_level=compression_level,
                 compression_strategy=compression_strategy,
                 filters=filters,
-                palette=palette)
+                file_gamma=file_gamma,
+            )
         end
     end
 end
@@ -355,7 +357,7 @@ function _save(png_ptr, info_ptr, image::S;
     compression_level::Integer = Z_BEST_SPEED,
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
-    palette::Union{Nothing,AbstractVector{<:Union{RGB{N0f8},RGBA{N0f8}}}} = nothing,
+    file_gamma::Union{Nothing,Float64} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -398,8 +400,12 @@ function _save(png_ptr, info_ptr, image::S;
         end
     end
 
+    if file_gamma === nothing
     # gAMA and cHRM chunks should be always present for compatibility with older systems
     png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_PERCEPTUAL)
+    else
+        png_set_gAMA(png_ptr, info_ptr, file_gamma)
+    end
 
     @debug(
         "Write PNG info:",
