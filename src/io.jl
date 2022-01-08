@@ -125,7 +125,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
             png_set_gamma(png_ptr, screen_gamma, image_gamma[])
         end
     elseif gamma != 1
-        image_gamma[] = gamma
+        image_gamma[] = 2.2inv(gamma)
         png_set_gamma(png_ptr, screen_gamma, image_gamma[])
     end
 
