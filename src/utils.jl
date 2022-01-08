@@ -107,3 +107,95 @@ function _inspect_png_read(fpath, gamma::Union{Nothing,Float64}=nothing)
     png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
     close_png(fp)
 end
+
+mutable struct _png_color_16_struct
+    index::png_byte
+    red::png_uint_16
+    green::png_uint_16
+    blue::png_uint_16
+    gray::png_uint_16
+end
+_png_color_16_struct(c::AbstractGray{<:AbstractFloat}) = _png_color_16_struct(0x00, gray(Gray{N0f8}(c)).i, gray(Gray{N0f8}(c)).i, gray(Gray{N0f8}(c)).i, gray(Gray{N0f8}(c)).i)
+_png_color_16_struct(c::AbstractGray{<:Normed}) = _png_color_16_struct(0x00, gray(c).i, gray(c).i, gray(c).i, gray(c).i)
+_png_color_16_struct(c::UInt8) = _png_color_16_struct(c, 0x0000, 0x0000, 0x0000, 0x0000)
+function _png_color_16_struct(c::AbstractRGB{<:AbstractFloat})
+    n = RGB{N0f8}(c)
+    _png_color_16_struct(0x00, red(n).i, green(n).i, blue(n).i, 0x0000)
+end
+_png_color_16_struct(c::AbstractRGB{<:Normed}) =  _png_color_16_struct(0x00, red(c).i, green(c).i, blue(c).i, 0x0000)
+
+
+function _png_get_bKGD(png_ptr, info_ptr, background)
+    ccall((:png_get_bKGD, libpng), png_uint_32, (png_const_structrp, png_inforp, Ptr{Ptr{_png_color_16_struct}}), png_ptr, info_ptr, background)
+end
+
+function _png_set_background(png_ptr, background_color, background_gamma_code, need_expand, background_gamma)
+    ccall((:png_set_background, libpng), Cvoid, (png_structrp, Ptr{_png_color_16_struct}, Cint, Cint, Cdouble), png_ptr, background_color, background_gamma_code, need_expand, background_gamma)
+end
+
+function process_background(png_ptr, info_ptr, background::Bool)
+    if background
+        bg = _png_color_16_struct(0, 0, 0, 0, 0)
+        GC.@preserve bg begin
+            bgpp = Ref(Ptr{_png_color_16_struct}(pointer_from_objref(bg)))
+            if _png_get_bKGD(png_ptr, info_ptr, bgpp) != 0
+                _png_set_background(png_ptr, bgpp[], PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
+            end
+        end
+        return bg
+    end
+    return
+end
+
+function process_background(png_ptr, info_ptr, background::Union{AbstractRGB,AbstractGray})
+    bg = _png_color_16_struct(background)
+    GC.@preserve bg begin
+        bgp = Ptr{_png_color_16_struct}(pointer_from_objref(bg))
+        _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
+        _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_SCREEN, 0, 1.0)
+    end
+    return bg
+end
+
+function process_background(png_ptr, info_ptr, background::UInt8)
+    bg = _png_color_16_struct(background)
+    GC.@preserve bg begin
+        bgp = Ptr{_png_color_16_struct}(pointer_from_objref(bg))
+        _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
+    end
+    return bg
+end
+
+_check_background_load(background::Bool, is_gray, has_pallette, as_paletted) = background
+_check_background_load(background::AbstractGray, is_gray, has_pallette, as_paletted) = true
+function _check_background_load(background::UInt8, is_gray, has_pallette, as_paletted)
+    has_pallette || throw(ArgumentError("Only paletted images can use a paletted index (background::UInt8)."))
+    !as_paletted || throw(ArgumentError("In order to use a (non-default) palette index to specify background, the `expand_paletted` flag must be set."))
+    return true
+end
+function _check_background_load(background::AbstractRGB, is_gray, has_pallette, as_paletted)
+    is_gray && throw(ArgumentError("Gray Images cannot use RGB background."))
+    return true
+end
+
+function _check_background_save(background::AbstractGray, color_type) 
+    color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA || 
+        throw(ArgumentError("Only gray scale images can use a Gray for a background."))
+end
+function _check_background_save(background::AbstractRGB, color_type)
+   (color_type & PNG_COLOR_MASK_COLOR) != 0 || 
+        throw(ArgumentError("Only true color images can use a RGB for background."))
+end
+function _check_background_save(background::UInt8, color_type) 
+    (color_type & PNG_COLOR_MASK_PALETTE) != 0 || 
+        throw(ArgumentError("Only paletted images can use a paletted index for background."))
+end
+
+function _png_set_bKGD(png_ptr, info_ptr, background)
+    bg = _png_color_16_struct(background)
+    GC.@preserve bg begin
+        bgp = Ptr{_png_color_16_struct}(pointer_from_objref(bg))
+        png_set_bKGD(png_ptr, info_ptr, bgp)
+    end
+    return
+end

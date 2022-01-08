@@ -19,14 +19,14 @@ When reading in simple paletted images, i.e. having a PLTE chunk and an 8 bit de
 be represented as an `IndirectArray` with `OffsetArray` `values` field. To always get back a plain
 `Matrix` of colorants, use `expand_paletted=true`.
 """
-function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false, background=false)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
     @debug "Load PNG File:" fpath png_ptr
     info_ptr = create_info_struct(png_ptr)
     png_init_io(png_ptr, fp)
     png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK)
-    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+    out = _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted, background=background)
     close_png(fp)
     return out
 end
@@ -45,8 +45,7 @@ else
     _iswritable(x) = iswritable(x)
 end
 
-
-function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false, background=false)
     isreadable(s) || throw(ArgumentError("read failed, IOStream is not readable"))
     Base.eof(s) && throw(EOFError())
 
@@ -61,7 +60,7 @@ function load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Boo
         end
         # https://stackoverflow.com/questions/22564718/libpng-error-png-unsigned-integer-out-of-range
         png_set_sig_bytes(png_ptr, 0)
-        return _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted)
+        return _load(png_ptr, info_ptr, gamma=gamma, expand_paletted=expand_paletted, background=background)
     end
 end
 
@@ -78,7 +77,7 @@ function _readcallback_iobuffer(png_ptr::png_structp, data::png_bytep, length::p
     return
 end
 
-function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false, background=false)
     png_read_info(png_ptr, info_ptr)
     flags = png_get_valid(
         png_ptr, info_ptr,
@@ -97,13 +96,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
     bit_depth = bit_depth_orig = png_get_bit_depth(png_ptr, info_ptr)
     num_channels = png_get_channels(png_ptr, info_ptr)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
-
-    if valid_bKGD
-        backgroundp = png_color_16p()
-        if png_get_bKGD(png_ptr, info_ptr, Ptr{png_color_16p}(backgroundp)) != 0
-            png_set_background(png_ptr, backgroundp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
-        end
-    end
+    background_color = nothing
 
     screen_gamma = PNG_DEFAULT_sRGB
     image_gamma = Ref{Cdouble}(-1.0)
@@ -139,29 +132,44 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
             png_set_palette_to_rgb(png_ptr)
             color_type = PNG_COLOR_TYPE_RGB
         end
-
+        
         if color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8
             png_set_expand_gray_1_2_4_to_8(png_ptr)
             png_set_packing(png_ptr)
             bit_depth = 8
         end
-
+        
         if valid_tRNS
             png_set_tRNS_to_alpha(png_ptr)
             if color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_RGB
                 color_type |= PNG_COLOR_MASK_ALPHA
             end
         end
+
+        if valid_bKGD & ((color_type | PNG_COLOR_MASK_ALPHA) > 0)
+            png_set_filler(png_ptr, 0xff, PNG_FILLER_AFTER)
+        end
         buffer_eltype = _buffer_color_type(color_type, bit_depth)
+        
         bit_depth == 16 && png_set_swap(png_ptr)
+    else
+        buffer_eltype = UInt8
     end
+    
+    if _check_background_load(background, color_type == PNG_COLOR_TYPE_GRAY_ALPHA, valid_PLTE, read_as_paletted)
+        if !((color_type_orig == PNG_COLOR_TYPE_PALETTE) || ((color_type | PNG_COLOR_MASK_ALPHA) > 0))
+            @warn "Non-transparent images cannot incorporate background inforrmation."
+        end
+        background_color = process_background(png_ptr, info_ptr, background)
+    end
+
     n_passes = png_set_interlace_handling(png_ptr)
     png_read_update_info(png_ptr, info_ptr)
 
     # Gamma correction is applied to a palette after `png_read_update_info` is called
     if read_as_paletted
         # TODO: Figure out the length of palette before calling png_get_PLTEs
-        #    `png_get_palette_max(png_ptr, info_ptr)`` seems like a good option
+        #    `png_get_palette_max(png_ptr, info_ptr)` seems like a good option
         #    I can't make it work (I only ever get it to return zero). Note that it
         #    has to be called after png_read_image / png_read_png.
         palette_length = Ref{Cint}()
@@ -187,6 +195,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     @debug(
         "Read PNG info:",
+        PNG_HEADER_VERSION_STRING,
         png_ptr,
         height,
         width,
@@ -199,6 +208,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         gamma,
         image_gamma[],
         screen_gamma,
+        background,
         intent[],
         read_as_paletted,
         n_passes,
@@ -209,7 +219,6 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         valid_cHRM,
         valid_bKGD,
         valid_PLTE,
-        PNG_HEADER_VERSION_STRING
     )
 
     GC.@preserve buffer begin
@@ -292,6 +301,7 @@ function save(
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     file_gamma::Union{Nothing,Float64} = nothing,
+    background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -315,6 +325,7 @@ function save(
         compression_strategy=compression_strategy,
         filters=filters,
         file_gamma=file_gamma,
+        background=background
     )
 
     close_png(fp)
@@ -326,6 +337,7 @@ function save(
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     file_gamma::Union{Nothing,Float64} = nothing,
+    background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -348,6 +360,7 @@ function save(
                 compression_strategy=compression_strategy,
                 filters=filters,
                 file_gamma=file_gamma,
+                background=background,
             )
         end
     end
@@ -358,6 +371,7 @@ function _save(png_ptr, info_ptr, image::S;
     compression_strategy::Integer = Z_RLE,
     filters::Integer = Int(PNG_FILTER_PAETH),
     file_gamma::Union{Nothing,Float64} = nothing,
+    background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix,AbstractArray{T,3}}
@@ -367,7 +381,7 @@ function _save(png_ptr, info_ptr, image::S;
     bit_depth = _get_bit_depth(image)
     color_type = _get_color_type(image)
     approx_bytes = round(Int, (height + 1) * width * bit_depth / 8 * (((color_type | PNG_COLOR_MASK_COLOR > 0) ? 3 : 1) + (color_type | PNG_COLOR_MASK_ALPHA > 0)))
-
+  
     png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, UInt32(filters))
     png_set_compression_level(png_ptr, compression_level)
     png_set_compression_strategy(png_ptr, compression_strategy)
@@ -379,8 +393,13 @@ function _save(png_ptr, info_ptr, image::S;
         palette = image.values
         color_count = length(palette)
         if eltype(palette) <: TransparentRGB
+            alphas = _palette_alpha(palette)
+            alpha_count = color_count
+            while (alpha_count > 0) && (alphas[alpha_count] == 1)
+                alpha_count -= 1
+            end 
             png_set_PLTE(png_ptr, info_ptr, _standardize_palette(color.(palette)), color_count)
-            png_set_tRNS(png_ptr, info_ptr, _palette_alpha(palette), color_count, C_NULL)
+            png_set_tRNS(png_ptr, info_ptr, alphas, alpha_count, C_NULL)
         else
             png_set_PLTE(png_ptr, info_ptr, _standardize_palette(palette), color_count)
         end
@@ -399,10 +418,14 @@ function _save(png_ptr, info_ptr, image::S;
             bit_depth = 8  # TODO: support 1, 2, 4 bit-depth gray images
         end
     end
+    if !(background === nothing)
+        _check_background_save(background, color_type)
+        _png_set_bKGD(png_ptr, info_ptr, background)
+    end
 
     if file_gamma === nothing
-    # gAMA and cHRM chunks should be always present for compatibility with older systems
-    png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_PERCEPTUAL)
+        # gAMA and cHRM chunks should be always present for compatibility with older systems
+        png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_PERCEPTUAL)
     else
         png_set_gAMA(png_ptr, info_ptr, file_gamma)
     end
@@ -451,13 +474,15 @@ function _writecallback(png_ptr::png_structp, data::png_bytep, length::png_size_
 end
 
 function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T}
-    ccall(
-        (:png_write_image, libpng),
-        Cvoid,
-        (Ptr{Cvoid}, Ptr{Ptr{T}}),
-        png_ptr,
-        map(pointer, eachcol(buf)),
-    )
+    GC.@preserve buf begin
+        ccall(
+            (:png_write_image, libpng),
+            Cvoid,
+            (Ptr{Cvoid}, Ptr{Ptr{T}}),
+            png_ptr,
+            map(pointer, eachcol(buf)),
+        )
+    end
     png_write_end(png_ptr, info_ptr)
 end
 
