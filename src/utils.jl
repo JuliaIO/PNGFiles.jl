@@ -152,7 +152,7 @@ function process_background(png_ptr, info_ptr, background::Union{AbstractRGB,Abs
     GC.@preserve bg begin
         bgp = Ptr{_png_color_16_struct}(pointer_from_objref(bg))
         _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
-        _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_SCREEN, 0, 1.0)
+        # _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_SCREEN, 0, 1.0)
     end
     return bg
 end
@@ -162,6 +162,7 @@ function process_background(png_ptr, info_ptr, background::UInt8)
     GC.@preserve bg begin
         bgp = Ptr{_png_color_16_struct}(pointer_from_objref(bg))
         _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_FILE, 1, 1.0)
+        # _png_set_background(png_ptr, bgp, PNG_BACKGROUND_GAMMA_SCREEN, 0, 1.0)
     end
     return bg
 end

@@ -62,7 +62,7 @@ edge_case_imgs = [
     ("N4f12_3", x -> _convert(RGB, N0f16, x), rand(N4f12, 127, 257, 3)),
     ("N4f12_4", x -> _convert(RGBA, N0f16, x), rand(N4f12, 127, 257, 4)),
     ("BGR-N0f8", identity, rand(BGR{N0f8}, 127, 257)),
-    ("BGR-N01f16", identity, rand(BGR{N0f16}, 127, 257)),
+    ("BGR-N0f16", identity, rand(BGR{N0f16}, 127, 257)),
     ("BGR-Float64", identity, BGR{Float64}.(rand(BGR{N0f8}, 127, 257))),
     ("BGRA-N0f8", identity, rand(BGRA{N0f8}, 127, 257)),
     ("BGRA-N0f16", identity, rand(BGRA{N0f16}, 127, 257)),

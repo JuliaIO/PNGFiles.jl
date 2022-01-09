@@ -1,23 +1,48 @@
 """
-    load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
-    load(s::IO; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false)
+    load(fpath::String; 
+         gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false, background=false)
+    load(s::IO; 
+         gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false, background=false)
 
-Read a `.png` image from file at `fpath` or in IO stream `s`.
-`gamma` can be used to override the automatic gamma correction, a value of 1.0
-means no gamma correction.
+Read a PNG image as a julia `Array`.
 
-The result will be an 8 bit (N0f8) image if the source bit depth is <= 8 bits, 16 bit (N0f16)
-otherwise.
+# Arguments
 
-The number of channels (and transparency) of the source determines the color type of the output:
-- 1 channel  -> Gray
-- 2 channels -> GrayA
-- 3 channels -> RGB
-- 4 channels -> RGBA
+- `fpath`: the path to the png file to be loaded.
+- `s`: an IO stream containing the png file.
 
-When reading in simple paletted images, i.e. having a PLTE chunk and an 8 bit depth, the image will
-be represented as an `IndirectArray` with `OffsetArray` `values` field. To always get back a plain
-`Matrix` of colorants, use `expand_paletted=true`.
+# Keywords
+
+- `gamma`: the end-to-end coefficient for gamma correction, can be used to override the 
+    automatic gamma correction, a value of `1.0` means no gamma correction. By default, 
+    gamma correction is applied according to a `gAMA` or `sRGB` chunks, if present; 
+    if neither chunk is present a value of `0.45455` for the file gamma is assumed. 
+    Screen gamma is currently always assumed to be `2.2`.
+- `background`: can be used to set a background color for transparent images. 
+    Accepted values are `false` for no background, `true` for loading the image 
+    with a solid background if `bKGD` chunk is set, as well as user-provided backgrounds 
+    of type `UInt8`, `Gray` or `RGB`, which represent a palette index, gray and true color 
+    backgrounds respectively.
+- `expand_paletted`: when reading in simple paletted images, i.e. having a `PLTE` chunk and 
+   an 8 bit depth, the image will be represented as an `IndirectArray` with `OffsetArray` 
+   `values` field. To always get back a plain `Matrix` of colorants, use `expand_paletted=true`.
+
+# Returns
+
+- `Matrix{Gray{N0f8}}`: for grayscale images (without transparency) and bit depth lower or equal to 8.
+- `Matrix{Gray{N0f16}}`: for grayscale images (without transparency) and bit depth equal to 16.
+- `Matrix{GrayA{N0f8}}`: for grayscale images (with transparency) and bit depth lower or equal to 8.
+- `Matrix{GrayA{N0f16}}`: for grayscale images (with transparency) and bit depth equal to 16.
+- `Matrix{RGB{N0f8}}`: for true color images (without transparency) and bit depth equal to 8.
+    Also for palleted images without transparency when `expand_paletted=true`.
+- `Matrix{RGB{N0f16}}`: for true color images (without transparency) and bit depth equal to 16.
+- `Matrix{RGBA{N0f8}}`: for true color images (with transparency) and bit depth equal to 8.
+    Also for palleted images without transparency when `expand_paletted=true`.
+- `Matrix{RGBA{N0f16}}`: for true color images (with transparency) and bit depth equal to 16.
+- `IndirectArray{RGB{N0f8}, 2, UInt8, Matrix{UInt8}, OffsetVector{RGB{N0f8}, Vector{RGB{N0f8}}}}`:
+    for palleted images with transparency when `expand_paletted=false`.
+- `IndirectArray{RGBA{N0f8}, 2, UInt8, Matrix{UInt8}, OffsetVector{RGBA{N0f8}, Vector{RGBA{N0f8}}}}`:
+    for palleted images with transparency when `expand_paletted=false`.
 """
 function load(fpath::String; gamma::Union{Nothing,Float64}=nothing, expand_paletted::Bool=false, background=false)
     fp = open_png(fpath)
@@ -266,33 +291,53 @@ const SupportedPaletteColor = Union{
     AbstractRGB{<:Union{N0f8,AbstractFloat}},
     TransparentRGB{T,<:Union{N0f8,AbstractFloat}} where T,
 }
-
 """
     save(fpath::String, image::AbstractArray;
-         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
+         compression_level::Int=0, compression_strategy::Int=3, filters::Int=4)
     save(s::IO, image::AbstractArray;
-         compression_level::Integer=0, compression_strategy::Integer=3, filters::Integer=4)
+         compression_level::Int=0, compression_strategy::Int=3, filters::Int=4)
 
-Writes `image` as a png to file at `fpath`, or to IO stream `s`.
+Write out a julia `Array` as a PNG image.
 
-## Arguments
-- `compression_level`: 0 (`Z_NO_COMPRESSION`), 1 (`Z_BEST_SPEED`), ..., 9 (`Z_BEST_COMPRESSION`)
-- `compression_strategy`: 0 (`Z_DEFAULT_STRATEGY`), 1 (`Z_FILTERED`), 2 (`Z_HUFFMAN_ONLY`), 3 (`Z_RLE`), 4 (`Z_FIXED`)
-- `filters`: 0 (None), 1 (Sub), 2 (Up), 3 (Average), 4 (Paeth).
+# Arguments
+- `fpath`: the filesystem path where to store the resulting PNG image.
+- `s`: the IO stream to which the resulting PNG image should be written to.
+- `image`: the julia `Array` which should be encoded as a PNG image. The type, eltype, and
+    dimensionality jointly determine the way the PNG file is encoded. The following table 
+    roughly summarises the encoding rules:
+| **dims**    | **type**                                       | **eltype** (`T`)                                     | **PNG color type**          | **PNG bit depth**                                |
+|:------------|:-----------------------------------------------|:-----------------------------------------------------|:----------------------------|-------------------------------------------------:|
+| `[h, w]`    | `AbstracArray{T,2}`                            | `Union{AbstractFloat, Unsigned, Normed, Gray}`       | `PNG_COLOR_TYPE_GRAY`       | 8 by default, 16 when `N0f16` or `N4f12` is used |
+| `[h, w, 1]` | `AbstracArray{T,3}`                            | `Union{AbstractFloat, Unsigned, Normed, Gray}`       | `PNG_COLOR_TYPE_GRAY`       | 8 by default, 16 when `N0f16` or `N4f12` is used |
+| `[h, w, 2]` | `AbstracArray{T,3}`                            | `Union{AbstractFloat, Unsigned, Normed, GrayA}`      | `PNG_COLOR_TYPE_GRAY_ALPHA` | 8 by default, 16 when `N0f16` or `N4f12` is used |
+| `[h, w, 3]` | `AbstracArray{T,3}`                            | `Union{AbstractFloat, Unsigned, Normed, RGB, BGR}`   | `PNG_COLOR_TYPE_RGB`        | 8 by default, 16 when `N0f16` or `N4f12` is used |
+| `[h, w, 4]` | `AbstracArray{T,3}`                            | `Union{AbstractFloat, Unsigned, Normed, RGBA, ARGB}` | `PNG_COLOR_TYPE_RGB_ALPHA`  | 8 by default, 16 when `N0f16` or `N4f12` is used |
+| `[h, w]`    | `IndirectArray{T, 2, S, Matrix{S}, Vector{T}}` | `Union{RGB, BGR, RGBA, ARGB}`                        | `PNG_COLOR_TYPE_PALETTE`    |                                                8 |
 
-The saved image will have 16 bits of depth if the `image` has eltype that is based on `UInt16`,
-8 bits otherwise.
+``Note``: Only `UInt8` and `UInt16` are supported for `Unsigned`, `Float32` and `Float64` for `AbstractFloat`;
+    `N0f8`, `N0f16` and `N4f12` for `Normed`. These types are also the only valid types for colorants.
 
-The number of channels and element type of the `image` determines the color type of the
-output:
-- 0/1 channel Float / Integer / Normed or Gray eltype        -> `PNG_COLOR_TYPE_GRAY`
-- 2 channels Float  / Integer / Normed or GrayA eltype       -> `PNG_COLOR_TYPE_GRAY_ALPHA`
-- 3 channels Float  / Integer / Normed or RGB / BGR eltype   -> `PNG_COLOR_TYPE_RGB`
-- 4 channels Float  / Integer / Normed or ARGB / ABGR eltype -> `PNG_COLOR_TYPE_RGB_ALPHA`
+``Note``: `Bool`s and `BitArray` are also supported, but the bit depth of the image will still be 8. 
 
-When `image` is an `IndirectArray` with up to 256 unique RGB colors, the result is encoded as a
-"paletted image".
+``Note``: When `image` is an `IndirectArray` with up to 256 unique `RGB` colors, the result is encoded as a paletted image. 
+    Palletes with 16 bit depths are not supported. The palette (`values` field of the `IndirectArray`) could also be represented with an `OffsetArray`.
 
+# Keywords
+
+- `compression_level`: `0` (`Z_NO_COMPRESSION`), `1` (`Z_BEST_SPEED`), ..., `9` (`Z_BEST_COMPRESSION`)
+- `compression_strategy`: 0 (`Z_DEFAULT_STRATEGY`), 1 (`Z_FILTERED`), 2 (`Z_HUFFMAN_ONLY`), 
+    3 (`Z_RLE`), 4 (`Z_FIXED`)
+- `filters`: specify a type of preprocessing applied to each row which can increase its compressability. 
+    Valid values are 0 (`None`), 1 (`Sub`), 2 (`Up`), 3 (`Average`), 4 (`Paeth`).
+- `file_gamma`: the value governing the gamma encoding of the image. When `nothing`, 
+    the image stored as `sRGB`, otherwise the gamma value provided will populate a `gAMA` 
+    chunk of the image.
+- `background`: optional background color to be stored in the `bKGD` chunk. Only meaningful for transparent images.
+    Valid values are `nothing` for no background, `UInt8` as a palette index for palleted images, 
+    `Gray` for grayscale images and `RGB` for true color images.
+
+# Returns
+- `nothing`
 """
 function save(
     fpath::String,
@@ -329,6 +374,7 @@ function save(
     )
 
     close_png(fp)
+    return
 end
 function save(
     s::IO,
@@ -364,6 +410,7 @@ function save(
             )
         end
     end
+    return
 end
 
 function _save(png_ptr, info_ptr, image::S;
