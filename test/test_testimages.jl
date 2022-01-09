@@ -14,7 +14,7 @@ real_imgs = [
             fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
                 open(io->PNGFiles.save(io, image), fpath, "w") #test IO method
-                @test PNGFiles.save(fpath, image) == 0
+                @test PNGFiles.save(fpath, image) === nothing
             end
             @testset "read" begin
                 global read_in_pngf = PNGFiles.load(fpath)

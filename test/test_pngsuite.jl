@@ -65,7 +65,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
             newpath = path * "_new" * ext
 
             open(io->PNGFiles.save(io, read_in_pngf), newpath, "w") #test IO method
-            @test PNGFiles.save(newpath, read_in_pngf) == 0
+            @test PNGFiles.save(newpath, read_in_pngf) === nothing
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
 
             @testset "$(case): PngSuite/ImageMagick read type equality" begin
