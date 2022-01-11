@@ -13,9 +13,11 @@ invalid_palette_arguments = [
 ]
 
 incompatible_background_arguments = [
-    ("gray_img_rgb_background", ArgumentError, rand(127, 257), "temp/PngSuite/bgbn4a08.png", RGB{N0f8}(1.0, 0.5, 0.0)),
-    ("gray_img_index_background", ArgumentError, rand(127, 257), "temp/PngSuite/bgbn4a08.png", 0x00),
-    ("rgb_img_index_background", ArgumentError, rand(127, 257, 3), "temp/PngSuite/bgwn6a08.png", 0x00),
+    ("graya_img_rgb_background", ArgumentError, rand(127, 257, 2), "temp/PngSuite/bgbn4a08.png", RGB{N0f8}(1.0, 0.5, 0.0)),
+    ("graya_img_index_background", ArgumentError, rand(127, 257, 2), "temp/PngSuite/bgbn4a08.png", 0x00),
+    ("rgba_img_index_background", ArgumentError, rand(127, 257, 4), "temp/PngSuite/bgwn6a08.png", 0x00),
+    ("rgb_no_alpha_background", ArgumentError, rand(127, 257, 3), "temp/PngSuite/basn2c08.png", RGB{N0f8}(0.0)),
+    ("gray_no_alpha_background", ArgumentError, rand(127, 257, 1), "temp/PngSuite/basn0g08.png", Gray{N0f8}(1.0)),
 ]
 
 @testset "Invalid inputs" begin

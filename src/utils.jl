@@ -1,5 +1,20 @@
 _nextpow2exp(n) = (8 * sizeof(n) - leading_zeros(n) - (count_ones(n) == 1))
 
+_get_bit_depth(img::BitArray) = 8  # TODO: write 1 bit-depth images
+_get_bit_depth(img::AbstractArray{C}) where {C<:Colorant} = __get_bit_depth(eltype(C))
+_get_bit_depth(img::AbstractArray{T}) where {T<:Normed} = __get_bit_depth(T)
+# __get_bit_depth(::Type{Normed{T,1}}) where T = 1  # TODO: write 1 bit-depth images
+# __get_bit_depth(::Type{Normed{T,2}}) where T = 2  # TODO: write 2 bit-depth images
+# __get_bit_depth(::Type{Normed{T,4}}) where T = 4  # TODO: write 4 bit-depth images
+__get_bit_depth(::Type{Normed{T,8}}) where T = 8
+__get_bit_depth(::Type{Normed{T,16}}) where T = 16
+__get_bit_depth(::Type{Normed{T,N}}) where {T,N} = ifelse(N <= 8, 8, 16)
+__get_bit_depth(::Type{<:AbstractFloat}) = 8
+_get_bit_depth(img::AbstractArray{T}) where {T<:AbstractFloat} = 8
+_get_bit_depth(img::AbstractArray{<:Bool}) = 8  # TODO: write 1 bit-depth images
+_get_bit_depth(img::AbstractArray{<:UInt8}) = 8
+_get_bit_depth(img::AbstractArray{<:UInt16}) = 16
+
 function _inspect_png_read(fpath, gamma::Union{Nothing,Float64}=nothing)
     fp = open_png(fpath)
     png_ptr = create_read_struct()
@@ -199,4 +214,14 @@ function _png_set_bKGD(png_ptr, info_ptr, background)
         png_set_bKGD(png_ptr, info_ptr, bgp)
     end
     return
+end
+
+_adjust_background_bitdepth(x, bit_depth) = x
+function _adjust_background_bitdepth(x::AbstractRGB{T}, bit_depth) where {T}
+    __get_bit_depth(T) == bit_depth && return x
+    return bit_depth == 8 ? RGB{N0f8}(x) : RGB{N0f16}(x)
+end
+function _adjust_background_bitdepth(x::AbstractGray{T}, bit_depth) where {T}
+    __get_bit_depth(T) == bit_depth && return x
+    return bit_depth == 8 ? Gray{N0f8}(x) : Gray{N0f16}(x)
 end

@@ -122,6 +122,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
     num_channels = png_get_channels(png_ptr, info_ptr)
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
     background_color = nothing
+    is_transparent = valid_tRNS | (color_type & PNG_COLOR_MASK_ALPHA) != 0 
 
     screen_gamma = PNG_DEFAULT_sRGB
     image_gamma = Ref{Cdouble}(-1.0)
@@ -181,11 +182,10 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         buffer_eltype = UInt8
     end
     
-    if _check_background_load(background, color_type == PNG_COLOR_TYPE_GRAY_ALPHA, valid_PLTE, read_as_paletted)
-        if !((color_type_orig == PNG_COLOR_TYPE_PALETTE) || ((color_type | PNG_COLOR_MASK_ALPHA) > 0))
-            @warn "Non-transparent images cannot incorporate background inforrmation."
-        end
-        background_color = process_background(png_ptr, info_ptr, background)
+    is_gray = (color_type == PNG_COLOR_TYPE_GRAY_ALPHA) | (color_type == PNG_COLOR_TYPE_GRAY)
+    if _check_background_load(background, is_gray, valid_PLTE, read_as_paletted)
+        is_transparent || throw(ArgumentError("Only transparent images can have a background"))
+        background_color = process_background(png_ptr, info_ptr, _adjust_background_bitdepth(background, bit_depth))
     end
 
     n_passes = png_set_interlace_handling(png_ptr)
@@ -349,7 +349,7 @@ function save(
     background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
 ) where {
     T,
-    S<:Union{AbstractMatrix,AbstractArray{T,3}}
+    S<:Union{AbstractMatrix{T},AbstractArray{T,3}}
 }
     @assert Z_DEFAULT_STRATEGY <= compression_strategy <= Z_FIXED
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
@@ -421,12 +421,13 @@ function _save(png_ptr, info_ptr, image::S;
     background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
 ) where {
     T,
-    S<:Union{AbstractMatrix,AbstractArray{T,3}}
+    S<:Union{AbstractMatrix{T},AbstractArray{T,3}}
 }
     image = _enforce_dense_cpu_array(image)
     height, width = size(image)[1:2]
     bit_depth = _get_bit_depth(image)
     color_type = _get_color_type(image)
+    is_transparent = (color_type & PNG_COLOR_MASK_ALPHA) != 0
     approx_bytes = round(Int, (height + 1) * width * bit_depth / 8 * (((color_type | PNG_COLOR_MASK_COLOR > 0) ? 3 : 1) + (color_type | PNG_COLOR_MASK_ALPHA > 0)))
   
     png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, UInt32(filters))
@@ -438,8 +439,9 @@ function _save(png_ptr, info_ptr, image::S;
         # TODO: 1, 2, 4 bit-depth indices for palleted
         _png_check_paletted(image)
         palette = image.values
+        is_transparent = eltype(palette) <: TransparentRGB
         color_count = length(palette)
-        if eltype(palette) <: TransparentRGB
+        if is_transparent
             alphas = _palette_alpha(palette)
             alpha_count = color_count
             while (alpha_count > 0) && (alphas[alpha_count] == 1)
@@ -466,8 +468,9 @@ function _save(png_ptr, info_ptr, image::S;
         end
     end
     if !(background === nothing)
+        is_transparent || throw(ArgumentError("Only transparent images can have a background"))
         _check_background_save(background, color_type)
-        _png_set_bKGD(png_ptr, info_ptr, background)
+        _png_set_bKGD(png_ptr, info_ptr, _adjust_background_bitdepth(background, bit_depth))
     end
 
     if file_gamma === nothing
@@ -595,20 +598,6 @@ _enforce_dense_cpu_array(img::DenseArray) = img
 _enforce_dense_cpu_array(img::OffsetArray) = _enforce_dense_cpu_array(parent(img))
 _enforce_dense_cpu_array(img::IndirectArray) = img # PNGFiles has built-in support for this type
 
-_get_bit_depth(img::BitArray) = 8  # TODO: write 1 bit-depth images
-_get_bit_depth(img::AbstractArray{C}) where {C<:Colorant} = __get_bit_depth(eltype(C))
-_get_bit_depth(img::AbstractArray{T}) where {T<:Normed} = __get_bit_depth(T)
-# __get_bit_depth(::Type{Normed{T,1}}) where T = 1  # TODO: write 1 bit-depth images
-# __get_bit_depth(::Type{Normed{T,2}}) where T = 2  # TODO: write 2 bit-depth images
-# __get_bit_depth(::Type{Normed{T,4}}) where T = 4  # TODO: write 4 bit-depth images
-__get_bit_depth(::Type{Normed{T,8}}) where T = 8
-__get_bit_depth(::Type{Normed{T,16}}) where T = 16
-__get_bit_depth(::Type{Normed{T,N}}) where {T,N} = ifelse(N <= 8, 8, 16)
-__get_bit_depth(::Type{<:AbstractFloat}) = 8
-_get_bit_depth(img::AbstractArray{T}) where {T<:AbstractFloat} = 8
-_get_bit_depth(img::AbstractArray{<:Bool}) = 8  # TODO: write 1 bit-depth images
-_get_bit_depth(img::AbstractArray{<:UInt8}) = 8
-_get_bit_depth(img::AbstractArray{<:UInt16}) = 16
 
 _get_color_type(x::AbstractArray{<:Gray}) = PNG_COLOR_TYPE_GRAY
 _get_color_type(x::AbstractArray{<:GrayA}) = PNG_COLOR_TYPE_GRAY_ALPHA

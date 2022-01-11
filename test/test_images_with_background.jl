@@ -6,6 +6,8 @@
     img_index_bg = PNGFiles.load("test_images/paletted_implicit_transparency.png", background=UInt8(46), expand_paletted=true)
     img_gray_bg = PNGFiles.load("test_images/paletted_implicit_transparency.png", background=Gray{N0f8}(1.0))
     img_rgb_bg = PNGFiles.load("test_images/paletted_implicit_transparency.png", background=RGB{N0f8}(1.0))
+    img_gray_bg16 = PNGFiles.load("test_images/paletted_implicit_transparency.png", background=Gray{N0f16}(1.0))
+    img_rgb_bg16 = PNGFiles.load("test_images/paletted_implicit_transparency.png", background=RGB{N0f16}(1.0))
 
     @testset "load" begin
         @testset "Background is not ignored" begin 
@@ -16,11 +18,17 @@
         @testset "Background as index into palette" begin
             @test img_file_bg ≈ img_index_bg
         end
-        @testset "Background as RGB" begin
+        @testset "Background as RGB 8 bit" begin
             @test img_file_bg ≈ img_rgb_bg
         end
-        @testset "Background as Gray" begin
+        @testset "Background as Gray 8 bit" begin
             @test img_file_bg ≈ img_gray_bg
+        end
+        @testset "Background as RGB 16 bit" begin
+            @test img_file_bg ≈ img_rgb_bg16
+        end
+        @testset "Background as Gray 16 bit" begin
+            @test img_file_bg ≈ img_gray_bg16
         end
     end
 
