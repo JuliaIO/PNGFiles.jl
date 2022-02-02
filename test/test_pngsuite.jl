@@ -36,6 +36,7 @@ end
 
 struct _Palleted; end
 const pngsuite_colormap = Dict("0g" => Gray, "2c" => RGB, "3p" => _Palleted, "4a" => GrayA, "6a" => RGBA)
+# based on values in bgbn4a08.png, bggn4a16.png, bgwn6a08.png, bgyn6a16.png
 
 function parse_pngsuite(x::AbstractString)
     code = splitext(x)[1]
@@ -43,7 +44,7 @@ function parse_pngsuite(x::AbstractString)
         case=code[1:end-5],
         is_interlaced=code[end-4]=='i',
         color_type=pngsuite_colormap[code[end-3:end-2]],
-        bit_depth=parse(Int, code[end-1:end])
+        bit_depth=parse(Int, code[end-1:end]),
     )
 end
 parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
@@ -64,7 +65,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
             newpath = path * "_new" * ext
 
             open(io->PNGFiles.save(io, read_in_pngf), newpath, "w") #test IO method
-            @test PNGFiles.save(newpath, read_in_pngf) == 0
+            @test PNGFiles.save(newpath, read_in_pngf) === nothing
             global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
 
             @testset "$(case): PngSuite/ImageMagick read type equality" begin
@@ -108,4 +109,54 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
     #         @test_throws ErrorException PNGFiles.load(fpath)
     #     end
     # end
+
+    @testset "Background chunk" begin
+        for fpath in glob(joinpath("./**/$(PNG_SUITE_DIR)", "bg*[!_new][!_new_im].png"))
+            case = last(splitpath(fpath))
+            bg_color_type = case[3]
+            @testset "$(case)" begin
+                if bg_color_type == 'a'
+                    @test all(PNGFiles.load(fpath, background=true) .≈ PNGFiles.load(fpath, background=false))
+                    continue
+                end
+                
+                path, ext = splitext(fpath)
+                if case == "bgbn4a08.png"
+                    bg=Gray{N0f8}(0.0)
+                elseif case == "bggn4a16.png"
+                    bg=Gray{N0f16}(0xab84/typemax(UInt16))
+                elseif case == "bgwn6a08.png"
+                    bg=RGB{N0f8}(1.0)
+                elseif case == "bgyn6a16.png"
+                    bg=RGB{N0f16}(1.0, 1.0, 0.0)
+                end
+
+                img_bg = PNGFiles.load(fpath, background=true, gamma=1.0)
+                img_userbg = PNGFiles.load(fpath, background=bg, gamma=1.0)
+                img_nobg = PNGFiles.load(fpath, background=false, gamma=1.0)
+
+                @testset "Background chunk is not ignored" begin
+                    @test !(img_bg ≈ img_nobg)
+                end
+
+                @testset "File <-> user provided backgrounds" begin
+                    @test img_bg ≈ img_userbg
+                end
+
+                @testset "Background chunk roundtripping" begin
+                    new_path1 = path * "_bg_new1" * ext
+                    new_path2 = path * "_bg_new2" * ext
+                    PNGFiles.save(new_path1, img_nobg, background=bg, file_gamma=1.0)
+                    new1_img_bg = PNGFiles.load(new_path1, background=true, gamma=1.0)
+                    new1_img_nobg = PNGFiles.load(new_path1, background=false, gamma=1.0)
+                    PNGFiles.save(new_path2, new1_img_nobg, background=bg, file_gamma=1.0)
+                    new2_img_bg = PNGFiles.load(new_path2, background=true, gamma=1.0)
+                    @test img_bg ≈ new1_img_bg
+                    @test new1_img_bg ≈ new2_img_bg
+                    Base.rm(new_path1)
+                    Base.rm(new_path2)
+                end
+            end
+        end
+    end
 end

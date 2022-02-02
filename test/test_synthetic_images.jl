@@ -9,7 +9,7 @@ include("test_images/synth_images.jl")
             fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
                 open(io->PNGFiles.save(io, image), fpath, "w") #test IO method
-                @test PNGFiles.save(fpath, image) == 0
+                @test PNGFiles.save(fpath, image) === nothing
             end
             @testset "read" begin
                 global read_in_pngf = PNGFiles.load(fpath)
@@ -49,7 +49,7 @@ include("test_images/synth_images.jl")
         @testset "$(case)" begin
             fpath = joinpath(PNG_TEST_PATH, "test_img_$(case).png")
             @testset "write" begin
-                @test PNGFiles.save(fpath, image) == 0
+                @test PNGFiles.save(fpath, image) === nothing
             end
             @testset "read" begin
                 global read_in_pngf = PNGFiles.load(fpath)
