@@ -123,6 +123,10 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
     interlace_type = png_get_interlace_type(png_ptr, info_ptr)
     background_color = nothing
     is_transparent = valid_tRNS | (color_type & PNG_COLOR_MASK_ALPHA) != 0 
+    is_gray = (color_type == PNG_COLOR_TYPE_GRAY_ALPHA) | (color_type == PNG_COLOR_TYPE_GRAY)
+
+    read_as_paletted = !expand_paletted && color_type == PNG_COLOR_TYPE_PALETTE && bit_depth == 8 && valid_PLTE
+    read_with_background = _check_background_load(background, is_gray, valid_PLTE, read_as_paletted)
 
     screen_gamma = PNG_DEFAULT_sRGB
     image_gamma = Ref{Cdouble}(-1.0)
@@ -148,11 +152,6 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         png_set_gamma(png_ptr, screen_gamma, image_gamma[])
     end
 
-    read_as_paletted = !expand_paletted &&
-        color_type == PNG_COLOR_TYPE_PALETTE &&
-        bit_depth == 8 && 
-        valid_PLTE
-
     if !read_as_paletted
         if color_type == PNG_COLOR_TYPE_PALETTE
             png_set_palette_to_rgb(png_ptr)
@@ -172,7 +171,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
             end
         end
 
-        if valid_bKGD & ((color_type | PNG_COLOR_MASK_ALPHA) > 0)
+        if read_with_background & valid_bKGD & is_transparent
             png_set_filler(png_ptr, 0xff, PNG_FILLER_AFTER)
         end
         buffer_eltype = _buffer_color_type(color_type, bit_depth)
@@ -182,10 +181,9 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
         buffer_eltype = UInt8
     end
     
-    is_gray = (color_type == PNG_COLOR_TYPE_GRAY_ALPHA) | (color_type == PNG_COLOR_TYPE_GRAY)
-    if _check_background_load(background, is_gray, valid_PLTE, read_as_paletted)
-        is_transparent || throw(ArgumentError("Only transparent images can have a background"))
+    if read_with_background
         background_color = process_background(png_ptr, info_ptr, _adjust_background_bitdepth(background, bit_depth))
+        is_transparent || @warn("Background color for non-transparent image: $(background_color)")
     end
 
     n_passes = png_set_interlace_handling(png_ptr)
@@ -468,7 +466,6 @@ function _save(png_ptr, info_ptr, image::S;
         end
     end
     if !(background === nothing)
-        is_transparent || throw(ArgumentError("Only transparent images can have a background"))
         _check_background_save(background, color_type)
         _png_set_bKGD(png_ptr, info_ptr, _adjust_background_bitdepth(background, bit_depth))
     end
