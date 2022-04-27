@@ -52,4 +52,14 @@ using OffsetArrays
             end
         end
     end
+
+    @testset "indexed image with special palatte type" begin
+        index = rand(1:5, 3, 4)
+        palatte = colorview(RGB{N0f8}, rand(UInt8, 3, 5))
+        img = IndirectArray(index, palatte)
+        ref = _load_and_save(IOBuffer(), collect(img))
+        actual = _load_and_save(IOBuffer(), img)
+        @test ref == actual
+        @test actual isa IndirectArray{RGB{N0f8}, 2}
+    end
 end
