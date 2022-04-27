@@ -620,11 +620,12 @@ function _get_color_type(
     error("Number of dimensions $(N) in image not supported (only 2D or 3D Arrays are expected).")
 end
 
-_standardize_palette(p::AbstractVector{<:RGB}) = p
-_standardize_palette(p::AbstractVector{<:AbstractRGB}) = RGB.(p)
-_standardize_palette(p::AbstractVector{<:RGB{<:AbstractFloat}}) = RGB{N0f8}.(p)
-_standardize_palette(p::AbstractVector{<:AbstractRGB{<:AbstractFloat}}) = RGB{N0f8}.(p)
-_standardize_palette(p::OffsetArray) = _standardize_palette(parent(p))
+_standardize_palette(p::AbstractVector) = _enforce_dense_cpu_array(__standardize_palette(p))
+__standardize_palette(p::AbstractVector{<:RGB}) = p
+__standardize_palette(p::AbstractVector{<:AbstractRGB}) = RGB.(p)
+__standardize_palette(p::AbstractVector{<:RGB{<:AbstractFloat}}) = RGB{N0f8}.(p)
+__standardize_palette(p::AbstractVector{<:AbstractRGB{<:AbstractFloat}}) = RGB{N0f8}.(p)
+__standardize_palette(p::OffsetArray) = __standardize_palette(parent(p))
 
 _palette_alpha(p::OffsetArray) where {T} = _palette_alpha(collect(p))
 _palette_alpha(p::AbstractVector{<:TransparentRGB{T,N0f8}}) where {T} = alpha.(p)
