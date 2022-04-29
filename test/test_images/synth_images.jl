@@ -34,6 +34,7 @@ synth_imgs = [
     "RGB" => rand(RGB, 127, 257),
     "RGBA" => rand(RGBA, 127, 257),
     "ARGB32" => reinterpret(ARGB32, rand(UInt32, 127, 257)),
+    "Gray-Bool" => rand(Gray{Bool}, 127, 257),
     "Gray-N0f8" => rand(Gray{N0f8}, 127, 257),
     "GrayA-N0f8" => rand(GrayA{N0f8}, 127, 257),
     "RGB-N0f8" => rand(RGB{N0f8}, 127, 257),
