@@ -553,6 +553,7 @@ _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Colorant{<:Normed}} = x
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt8} =  reinterpret(Gray{N0f8}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:UInt16} = reinterpret(Gray{N0f16}, x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Normed} = reinterpret(Gray{T}, x)
+_prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Gray{Bool}} =  Gray{N0f8}.(x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:Gray{<:AbstractFloat}} =  Gray{N0f8}.(x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:GrayA{<:AbstractFloat}} = GrayA{N0f8}.(x)
 _prepare_buffer(x::AbstractMatrix{<:T}) where {T<:RGB{<:AbstractFloat}} =   RGB{N0f8}.(x)

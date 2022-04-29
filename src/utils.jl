@@ -6,6 +6,7 @@ _get_bit_depth(img::AbstractArray{T}) where {T<:Normed} = __get_bit_depth(T)
 # __get_bit_depth(::Type{Normed{T,1}}) where T = 1  # TODO: write 1 bit-depth images
 # __get_bit_depth(::Type{Normed{T,2}}) where T = 2  # TODO: write 2 bit-depth images
 # __get_bit_depth(::Type{Normed{T,4}}) where T = 4  # TODO: write 4 bit-depth images
+__get_bit_depth(::Type{Bool}) = 8  # TODO: write 1 bit-depth images
 __get_bit_depth(::Type{Normed{T,8}}) where T = 8
 __get_bit_depth(::Type{Normed{T,16}}) where T = 16
 __get_bit_depth(::Type{Normed{T,N}}) where {T,N} = ifelse(N <= 8, 8, 16)
