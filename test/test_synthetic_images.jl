@@ -1,5 +1,3 @@
-
-
 include("test_images/synth_images.jl")
 
 @testset "synthetic images" begin
