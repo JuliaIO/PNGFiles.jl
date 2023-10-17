@@ -192,9 +192,10 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
     # Gamma correction is applied to a palette after `png_read_update_info` is called
     if read_as_paletted
         palette_length = Ref{Cint}(0)
-        palette = Ref{Ptr{PNGFiles.png_color_struct}}(C_NULL)
-        png_get_PLTE(png_ptr, info_ptr, palette, palette_length)
-        palette = unsafe_wrap(Array, Ptr{RGB{N0f8}}(palette[]), palette_length[])
+        palette_buffer = Ref{Ptr{PNGFiles.png_color_struct}}(C_NULL)
+        png_get_PLTE(png_ptr, info_ptr, palette_buffer, palette_length)
+        palette = Vector{RGB{N0f8}}(undef, palette_length[])
+        GC.@preserve palette unsafe_copyto!(pointer(palette), Ptr{RGB{N0f8}}(palette_buffer[]), length(palette))
         if valid_tRNS
             alpha_buffer = Ref{Ptr{UInt8}}(C_NULL)
             alphas_cnt = Ref{Cint}(0)
@@ -203,14 +204,12 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
             @assert palette_length[] >= alphas_cnt[]
             GC.@preserve alpha unsafe_copyto!(pointer(alpha), Ptr{N0f8}(alpha_buffer[]), min(palette_length[], alphas_cnt[]))
             palette = map(RGBA, palette, alpha)
-        else
-            copy(palette)
         end
         buffer_eltype = UInt8
     end
 
     # We transpose to work around libpng expecting row-major arrays
-    buffer = Array{buffer_eltype}(undef, width, height)
+    buffer = Matrix{buffer_eltype}(undef, width, height)
 
     @debug(
         "Read PNG info:",
