@@ -191,30 +191,25 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 
     # Gamma correction is applied to a palette after `png_read_update_info` is called
     if read_as_paletted
-        # TODO: Figure out the length of palette before calling png_get_PLTEs
-        #    `png_get_palette_max(png_ptr, info_ptr)` seems like a good option
-        #    I can't make it work (I only ever get it to return zero). Note that it
-        #    has to be called after png_read_image / png_read_png.
-        palette_length = Ref{Cint}()
-        palette_buffer = Vector{RGB{N0f8}}(undef, PNG_MAX_PALETTE_LENGTH)
-        GC.@preserve palette_buffer begin
-            png_get_PLTE(png_ptr, info_ptr, pointer_from_objref(palette_buffer), palette_length)
-            palette = palette_buffer[1:palette_length[]]
-        end
+        palette_length = Ref{Cint}(0)
+        palette_buffer = Ref{Ptr{PNGFiles.png_color_struct}}(C_NULL)
+        png_get_PLTE(png_ptr, info_ptr, palette_buffer, palette_length)
+        palette = Vector{RGB{N0f8}}(undef, palette_length[])
+        GC.@preserve palette unsafe_copyto!(pointer(palette), Ptr{RGB{N0f8}}(palette_buffer[]), length(palette))
         if valid_tRNS
-            alpha_buffer = Vector{N0f8}(undef, palette_length[])
-            alphas_cnt = Ref{Cint}()
-            GC.@preserve alpha_buffer begin
-                png_get_tRNS(png_ptr, info_ptr, pointer_from_objref(alpha_buffer), alphas_cnt, C_NULL)
-            end
-            alpha_buffer[alphas_cnt[]+1:palette_length[]] .= one(N0f8)  # palette entries are opaque by default
-            palette = map(RGBA, palette, alpha_buffer)
+            alpha_buffer = Ref{Ptr{UInt8}}(C_NULL)
+            alphas_cnt = Ref{Cint}(0)
+            png_get_tRNS(png_ptr, info_ptr, alpha_buffer, alphas_cnt, C_NULL)
+            alpha = fill(one(N0f8), palette_length[]) # palette entries are opaque by default
+            @assert palette_length[] >= alphas_cnt[]
+            GC.@preserve alpha unsafe_copyto!(pointer(alpha), Ptr{N0f8}(alpha_buffer[]), min(palette_length[], alphas_cnt[]))
+            palette = map(RGBA, palette, alpha)
         end
         buffer_eltype = UInt8
     end
 
     # We transpose to work around libpng expecting row-major arrays
-    buffer = Array{buffer_eltype}(undef, width, height)
+    buffer = Matrix{buffer_eltype}(undef, width, height)
 
     @debug(
         "Read PNG info:",
