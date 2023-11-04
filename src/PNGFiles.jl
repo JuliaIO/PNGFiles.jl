@@ -7,7 +7,7 @@ using IndirectArrays
 using OffsetArrays
 using libpng_jll
 
-libpng_wrap_dir = joinpath(@__DIR__, "..", "gen", "libpng")
+libpng_wrap_dir = joinpath("..", "gen", "libpng")
 using CEnum
 include(joinpath(libpng_wrap_dir, "libpng_api.jl"))
 
