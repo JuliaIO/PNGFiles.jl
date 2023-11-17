@@ -12,27 +12,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ['1.6', '1', 'nightly']
-        os: [ubuntu-latest]
-        arch: [x64]
-        include:
-          - os: windows-latest
-            julia-version: '1'
-            arch: x64
-          - os: windows-latest
-            julia-version: '1'
-            arch: x86
+        julia-version: ['1', '^1.10.0-rc1', 'nightly']
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        arch: [x64, x86]
+        exclude:
           - os: macOS-latest
-            julia-version: '1'
-            arch: x64
-          - os: ubuntu-latest
-            julia-version: '1'
             arch: x86
-
     steps:
       - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@latest
+      - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      - uses: julia-actions/julia-runtest@latest
+      - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
