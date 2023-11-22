@@ -24,7 +24,7 @@ jobs:
     steps:
       - run: |
           echo '${{ toJSON(matrix || '') }}' | jq -r 'to_entries | map("\(.value)") | "matrix-string=" + join("-")' >> $GITHUB_OUTPUT
-          echo "restore-key=$matrix-string" >> $GITHUB_OUTPUT
+          echo "restore-key=${matrix-string}" >> $GITHUB_OUTPUT
         id: foo
         shell: bash
       - run: |
