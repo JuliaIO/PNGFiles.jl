@@ -23,7 +23,7 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      - uses: julia-actions/cache@6dec7a772ec00ab54b3d1c9d41ffc7c9eeb250ad
+      - uses: julia-actions/cache@f91fc57dd71de1c008f695c6bfa8aca2a7ef2838
       - uses: julia-actions/julia-runtest@v1
         with:
           coverage: 'false'
