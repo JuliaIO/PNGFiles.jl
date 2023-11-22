@@ -27,6 +27,7 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
       - run: echo '${{ toJSON(matrix || '') }}' | jq -r '[.[]] | join("-")'
+        shell: bash
       - uses: julia-actions/cache@e728574ebe1cca247c00e20b177387a41b086d6f
       - uses: julia-actions/julia-runtest@v1
         with:
