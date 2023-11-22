@@ -12,30 +12,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: [1]
-        # julia-version: ['1', '^1.10.0-rc1', 'nightly']
-        os: [ubuntu-latest]
-        # os: [ubuntu-latest, windows-latest, macOS-latest]
-        arch: [x64]
-        # arch: [x64, x86]
+        julia-version: ['1', '^1.10.0-rc1', 'nightly']
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        arch: [x64, x86]
         exclude:
           - os: macOS-latest
             arch: x86
     steps:
-      - run: |
-          echo '${{ toJSON(matrix || '') }}' | jq -r 'to_entries | map("\(.value)") | "matstr=" + join("-")' >> $GITHUB_OUTPUT
-          echo 'restore-key=${matstr}' >> $GITHUB_OUTPUT
-        id: foo
-        shell: bash
-      - run: |
-          echo "${{ steps.foo.outputs.matstr }}"
-          echo "${{ steps.foo.outputs.restore-key }}"
-        shell: bash
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      - uses: julia-actions/cache@e728574ebe1cca247c00e20b177387a41b086d6f
+      - uses: julia-actions/cache@6dec7a772ec00ab54b3d1c9d41ffc7c9eeb250ad
       - uses: julia-actions/julia-runtest@v1
         with:
           coverage: 'false'
