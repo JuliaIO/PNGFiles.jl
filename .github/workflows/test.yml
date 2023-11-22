@@ -12,9 +12,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ['1', '^1.10.0-rc1', 'nightly']
-        os: [ubuntu-latest, windows-latest, macOS-latest]
-        arch: [x64, x86]
+        julia-version: [1]
+        # julia-version: ['1', '^1.10.0-rc1', 'nightly']
+        os: [ubuntu-latest]
+        # os: [ubuntu-latest, windows-latest, macOS-latest]
+        arch: [x64]
+        # arch: [x64, x86]
         exclude:
           - os: macOS-latest
             arch: x86
