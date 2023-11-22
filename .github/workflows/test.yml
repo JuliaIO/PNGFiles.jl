@@ -22,9 +22,7 @@ jobs:
           - os: macOS-latest
             arch: x86
     steps:
-      - run: echo '${{ toJSON(matrix || '') }}' | jq -r '[.[]] | join("-")'
-        shell: bash
-      - run: echo '${{ toJSON(matrix || '') }}' | jq -r 'to_entries | map("\(.key)=\(.value)") | join("-")' | read mat | (echo "matrix-string=$mat" >> $GITHUB_OUTPUT)
+      - run: echo '${{ toJSON(matrix || '') }}' | jq -r 'to_entries | map("\(.key)=\(.value)") | "matrix-string=" + join("-")' >> $GITHUB_OUTPUT)
         id: foo
         shell: bash
       - run: echo "${{ steps.foo.outputs.matrix-string }}"
