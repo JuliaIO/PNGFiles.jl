@@ -23,8 +23,8 @@ jobs:
             arch: x86
     steps:
       - run: |
-          echo '${{ toJSON(matrix || '') }}' | jq -r 'to_entries | map("\(.value)") | "matrix_string=" + join("-")' >> $GITHUB_OUTPUT
-          echo "restore-key=${matrix_string}" >> $GITHUB_OUTPUT
+          echo '${{ toJSON(matrix || '') }}' | jq -r 'to_entries | map("\(.value)") | "matstr=" + join("-")' >> $GITHUB_OUTPUT
+          echo "restore-key=${matstr}" >> $GITHUB_OUTPUT
         id: foo
         shell: bash
       - run: |
