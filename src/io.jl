@@ -527,8 +527,8 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
     end
     png_write_end(png_ptr, info_ptr)
 end
-function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T <: AbstractRGB}
-    return _write_image(colorview(buf), png_ptr, info_ptr)
+function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Ptr{Cvoid}) where {T <: Colorant}
+    return _write_image(rawview(buf), png_ptr, info_ptr)
 end
 
 function _png_check_paletted(image)
