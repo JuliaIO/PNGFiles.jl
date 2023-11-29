@@ -520,7 +520,7 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
         ccall(
             (:png_write_image, libpng),
             Cvoid,
-            (Ptr{Cvoid}, Ptr{Ptr{T}}),
+            (Ptr{Cvoid}, Ptr{Ptr{UInt8}}),
             png_ptr,
             map(pointer, eachcol(reinterpret(UInt8, buf))),
         )
