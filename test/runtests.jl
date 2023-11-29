@@ -52,7 +52,6 @@ end
 
 ensure_imagemagick()
 @testset "PNGFiles" begin
-    @test true
     include("test_pngsuite.jl")
     include("test_paletted_images.jl")
     include("test_testimages.jl")
