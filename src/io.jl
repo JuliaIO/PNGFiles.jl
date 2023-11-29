@@ -253,7 +253,7 @@ function _load(png_ptr, info_ptr; gamma::Union{Nothing,Float64}=nothing, expand_
 end
 
 function _load!(buffer::Matrix{T}, png_ptr, info_ptr) where T    # separate to support precompilation of permutedims
-    png_read_image(png_ptr, map(pointer, eachcol(rawview(channelview(buffer)))))
+    png_read_image(png_ptr, map(pointer, eachcol(reinterpret(UInt8, buffer))))
     png_read_end(png_ptr, info_ptr)
     png_destroy_read_struct(Ref{Ptr{Cvoid}}(png_ptr), Ref{Ptr{Cvoid}}(info_ptr), C_NULL)
     return permutedims(buffer, (2, 1))
@@ -522,7 +522,7 @@ function _write_image(buf::AbstractArray{T,2}, png_ptr::Ptr{Cvoid}, info_ptr::Pt
             Cvoid,
             (Ptr{Cvoid}, Ptr{Ptr{T}}),
             png_ptr,
-            map(pointer, eachcol(rawview(channelview(buf)))),
+            map(pointer, eachcol(reinterpret(UInt8, buf))),
         )
     end
     png_write_end(png_ptr, info_ptr)
