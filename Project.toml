@@ -12,7 +12,7 @@ OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 libpng_jll = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
 
 [compat]
-CEnum = "0.2, 0.3, 0.4"
+CEnum = "0.2, 0.3, 0.4, 0.5"
 ImageCore = "0.8, 0.9, 0.10"
 # TODO(johnnychen94): remove direct ImageMagick_jll dependency after https://github.com/JuliaIO/ImageMagick.jl/issues/206 is fixed
 ImageMagick_jll = "= 6.9.10"
