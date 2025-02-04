@@ -280,6 +280,18 @@ end
 
 ### Write ##########################################################################################
 
+_dpi_to_ppm(::Nothing) = nothing
+function _dpi_to_ppm(dpi::Real)
+    @assert dpi > 0
+    pixels_per_meter = round(UInt32, dpi / 0.0254)
+    return (pixels_per_meter, pixels_per_meter)
+end
+function _dpi_to_ppm(dpi::Tuple{<:Real,<:Real})
+    @assert dpi[1] > 0
+    @assert dpi[2] > 0
+    return round.(UInt32, dpi ./ 0.0254)
+end
+
 const SupportedPaletteColor = Union{
     AbstractRGB{<:Union{N0f8,AbstractFloat}},
     TransparentRGB{T,<:Union{N0f8,AbstractFloat}} where T,
@@ -328,6 +340,9 @@ Write out a julia `Array` as a PNG image.
 - `background`: optional background color to be stored in the `bKGD` chunk. Only meaningful for transparent images.
     Valid values are `nothing` for no background, `UInt8` as a palette index for palleted images,
     `Gray` for grayscale images and `RGB` for true color images.
+- `dpi`: stores the pixel density given in dots per inch into the `pHYs` chunk as pixels per meter.
+    The density is given as `dpi` for ease of use as pixels per meter is an uncommon format. If set to `nothing`,
+    no pixel density is written. If set to a 2-element tuple, a different density is written for x and y, respectively.
 
 # Returns
 - `nothing`
@@ -340,6 +355,7 @@ function save(
     filters::Integer = Int(PNG_FILTER_PAETH),
     file_gamma::Union{Nothing,Float64} = nothing,
     background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
+    dpi::Union{Nothing,Real,Tuple{<:Real,<:Real}} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix{T},AbstractArray{T,3}}
@@ -363,7 +379,8 @@ function save(
         compression_strategy=compression_strategy,
         filters=filters,
         file_gamma=file_gamma,
-        background=background
+        background=background,
+        pixels_per_meter = _dpi_to_ppm(dpi),
     )
 
     close_png(fp)
@@ -377,6 +394,7 @@ function save(
     filters::Integer = Int(PNG_FILTER_PAETH),
     file_gamma::Union{Nothing,Float64} = nothing,
     background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
+    dpi::Union{Nothing,Real,Tuple{<:Real,<:Real}} = nothing,
 ) where {
     S<:Union{AbstractMatrix,AbstractArray{<:Any,3}}
 }
@@ -399,6 +417,7 @@ function save(
                 filters=filters,
                 file_gamma=file_gamma,
                 background=background,
+                pixels_per_meter = _dpi_to_ppm(dpi),
             )
         end
     end
@@ -411,6 +430,7 @@ function _save(png_ptr, info_ptr, image::S;
     filters::Integer = Int(PNG_FILTER_PAETH),
     file_gamma::Union{Nothing,Float64} = nothing,
     background::Union{Nothing,UInt8,AbstractGray,AbstractRGB} = nothing,
+    pixels_per_meter::Union{Nothing,Tuple{UInt32,UInt32}} = nothing,
 ) where {
     T,
     S<:Union{AbstractMatrix{T},AbstractArray{T,3}}
@@ -426,6 +446,9 @@ function _save(png_ptr, info_ptr, image::S;
     png_set_compression_level(png_ptr, compression_level)
     png_set_compression_strategy(png_ptr, compression_strategy)
     png_set_compression_window_bits(png_ptr, min(15, max(8, _nextpow2exp(approx_bytes))))
+    if pixels_per_meter !== nothing
+        png_set_pHYs(png_ptr, info_ptr, pixels_per_meter..., PNG_RESOLUTION_METER)
+    end
 
     if color_type == PNG_COLOR_TYPE_PALETTE
         # TODO: 1, 2, 4 bit-depth indices for palleted
