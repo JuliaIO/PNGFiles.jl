@@ -12,7 +12,7 @@
     PNGFiles.save(io_300_500, img; dpi = (300, 500))
 
     for io in [io_none, io_300, io_300_300, io_300_500]
-        seek(io, 0)
+        seekstart(io)
         @test PNGFiles.load(io) == img
     end
 
