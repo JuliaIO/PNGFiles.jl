@@ -29,7 +29,18 @@ function get_libpng_version()
 end
 
 function open_png(filename::String)
-    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "rb")
+    if Sys.iswindows()
+        filename_utf16 = transcode(UInt16, filename)
+        push!(filename_utf16, 0)  # add null terminator
+        mode_utf16 = transcode(UInt16, "rb")
+        push!(mode_utf16, 0)
+    
+        fp = ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}), filename_utf16, mode_utf16)
+    else
+        # Linux/macOS 
+        fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "rb")
+    end
+    
     fp == C_NULL && error("Failed to open $filename")
 
     header = zeros(UInt8, PNG_BYTES_TO_CHECK)
