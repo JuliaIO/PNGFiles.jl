@@ -61,6 +61,7 @@ ensure_imagemagick()
     include("test_io.jl")
     include("test_various_array_types.jl")
     include("test_dpi.jl")
+    include("test_win_widechar_filename.jl")
 end
 
 # Cleanup
