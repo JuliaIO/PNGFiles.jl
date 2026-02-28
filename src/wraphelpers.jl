@@ -30,12 +30,12 @@ end
 
 function open_png(filename::String)
     if Sys.iswindows()
-        filename_utf16 = transcode(UInt16, filename)
+        filename_utf16 = transcode(Cwchar_t, filename)
         push!(filename_utf16, 0)  # add null terminator
-        mode_utf16 = transcode(UInt16, "rb")
+        mode_utf16 = transcode(Cwchar_t, "rb")
         push!(mode_utf16, 0)
     
-        fp = ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}), filename_utf16, mode_utf16)
+        fp = ccall(:_wfopen, Ptr{Cvoid}, (Ptr{Cwchar_t}, Ptr{Cwchar_t}), filename_utf16, mode_utf16)
     else
         # Linux/macOS 
         fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "rb")
