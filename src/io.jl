@@ -365,6 +365,7 @@ function save(
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
 
+    # Non-ASCII characters require the wide-string Windows API
     fp = if Sys.iswindows()
         wfpath = transcode(UInt16, fpath * "\0")
         ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}),
