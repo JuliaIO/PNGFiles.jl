@@ -38,20 +38,10 @@ expected_img(x::Matrix{<:AbstractRGB}) = RGB{N0f8}.(x)
                         @test eltype(_standardize_grayness(read_in_pngf)) == eltype(read_in_immag)
                     end
                     @testset "$(case): ImageMagick read values equality" begin
-                        if occursin(r"^(ARGB|ABGR|RGBA)_paletted", case)
-                            # Same palette+tRNS decoder disagreement under
-                            # ImageMagick_jll 7.x as in test_pngsuite.jl; tRNS-bearing
-                            # alpha is interpreted differently. Synthetic random data
-                            # means the magnitude varies between runs, so @test_skip
-                            # (rather than @test_broken) avoids spurious "unexpected
-                            # pass" errors when the random palette happens to be benign.
-                            @test_skip false
-                        else
-                            imdiff_val = imdiff(read_in_pngf, read_in_immag)
-                            onfail(@test imdiff_val < 0.01) do
-                                PNGFiles._inspect_png_read(fpath)
-                                _add_debugging_entry(fpath, case, imdiff_val)
-                            end
+                        imdiff_val = imdiff(read_in_pngf, read_in_immag)
+                        onfail(@test imdiff_val < 0.01) do
+                            PNGFiles._inspect_png_read(fpath)
+                            _add_debugging_entry(fpath, case, imdiff_val)
                         end
                     end
                     path, ext = splitext(fpath)
