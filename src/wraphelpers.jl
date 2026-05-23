@@ -29,16 +29,20 @@ function get_libpng_version()
 end
 
 function open_png(filename::String)
-    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "rb")
+    fp = if Sys.iswindows()
+        wfilename = transcode(UInt16, filename * "\0")
+        ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}),
+              wfilename, transcode(UInt16, "rb\0"))
+    else
+        ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "rb")
+    end
     fp == C_NULL && error("Failed to open $filename")
-
     header = zeros(UInt8, PNG_BYTES_TO_CHECK)
-    header_size = ccall(:fread, Csize_t, (Ptr{UInt8}, Cint, Cint, Ptr{Cvoid}), header, 1, PNG_BYTES_TO_CHECK, fp)
+    header_size = ccall(:fread, Csize_t, (Ptr{UInt8}, Cint, Cint, Ptr{Cvoid}),
+                        header, 1, PNG_BYTES_TO_CHECK, fp)
     header_size != 8 && error("Failed to read header from $filename")
-
     is_png = png_sig_cmp(header, 0, PNG_BYTES_TO_CHECK)
     is_png != 0 && error("File $filename is not a png file")
-
     return fp
 end
 

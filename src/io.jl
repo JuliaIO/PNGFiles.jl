@@ -365,7 +365,13 @@ function save(
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
 
-    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
+    fp = if Sys.iswindows()
+        wfpath = transcode(UInt16, fpath * "\0")
+        ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}),
+              wfpath, transcode(UInt16, "wb\0"))
+    else
+        ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
+    end
     fp == C_NULL && error("Could not open $(fpath) for writing")
 
     png_ptr = create_write_struct()
