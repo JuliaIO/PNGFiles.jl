@@ -32,7 +32,7 @@ expected_img(x::Matrix{<:AbstractRGB}) = RGB{N0f8}.(x)
                     @testset "compare" begin
                         @test all(expected .≈ read_in_pngf)
                     end
-                    global read_in_immag = _standardize_grayness(ImageMagick.load(fpath))
+                    global read_in_immag = _standardize_grayness(_im_load_raw(fpath))
                     @testset "$(case): ImageMagick read type equality" begin
                         # The lena image is Grayscale saved as RGB...
                         @test eltype(_standardize_grayness(read_in_pngf)) == eltype(read_in_immag)
