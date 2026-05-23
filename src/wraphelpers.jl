@@ -29,10 +29,9 @@ function get_libpng_version()
 end
 
 function open_png(filename::String)
+    occursin('\0', filename) && throw(ArgumentError("filename contains a null character"))
     fp = if Sys.iswindows()
-        wfilename = transcode(UInt16, filename * "\0")
-        ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}),
-              wfilename, transcode(UInt16, "rb\0"))
+        ccall(:_wfopen, Ptr{Cvoid}, (Cwstring, Cwstring), filename, "rb")
     else
         ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), filename, "rb")
     end

@@ -360,6 +360,7 @@ function save(
     T,
     S<:Union{AbstractMatrix{T},AbstractArray{T,3}}
 }
+    occursin('\0', fpath) && throw(ArgumentError("fpath contains a null character"))
     @assert Z_DEFAULT_STRATEGY <= compression_strategy <= Z_FIXED
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
     @assert 2 <= ndims(image) <= 3
@@ -367,9 +368,7 @@ function save(
 
     # Non-ASCII characters require the wide-string Windows API
     fp = if Sys.iswindows()
-        wfpath = transcode(UInt16, fpath * "\0")
-        ccall(:_wfopen, Ptr{Cvoid}, (Ptr{UInt16}, Ptr{UInt16}),
-              wfpath, transcode(UInt16, "wb\0"))
+        ccall(:_wfopen, Ptr{Cvoid}, (Cwstring, Cwstring), fpath, "wb")
     else
         ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
     end

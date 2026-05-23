@@ -24,6 +24,12 @@ warn_background_arguments = [
 ]
 
 @testset "Invalid inputs" begin
+    @testset "File paths" begin
+        nul_path = "bad\0path.png"
+        @test_throws ArgumentError PNGFiles.load(nul_path)
+        @test_throws ArgumentError PNGFiles.save(nul_path, rand(4, 4))
+    end
+
     @testset "Dimensionality" begin
         for (case, exception, image) in invalid_imgs
             @testset "$(case) throws" begin
