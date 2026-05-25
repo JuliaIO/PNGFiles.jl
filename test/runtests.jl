@@ -25,7 +25,7 @@ open(DEBUG_FILE, "w") do f
     write(f, "```\n")
 end
 function _add_debugging_entry(fpath, case, imdiff_val=missing)
-    apath = joinpath(@__DIR__, abspath(fpath))
+    apath = abspath(fpath)
     open(DEBUG_FILE, "a") do f
         write(f, "\n\n")
         write(f, "# $(case) ############################################################\n")
