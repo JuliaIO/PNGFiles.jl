@@ -8,6 +8,67 @@ function is_ci()
     get(ENV, "CI", "") in ("true", "True")
 end
 
+# Drop-in replacement for ImageMagick.load that bypasses the alpha-channel
+# pre-association that ImageMagick_jll 7.x runs by default during pixel
+# export. Without this bypass, transparent and low-α palette entries get
+# zeroed/quantized before reaching the returned array, which is a
+# representation choice unrelated to PNG decode correctness. Calling
+# MagickSetImageAlphaChannel with the UndefinedAlphaChannel op (=0) flips
+# the wand's alpha-channel state so subsequent MagickExportImagePixels
+# returns the raw decoded samples instead. Also avoids the "Cannot parse
+# colorspace LinearGRAY" path in ImageMagick.jl by not going through its
+# `_metadata` colorspace-name lookup.
+function _im_load_raw(fpath::AbstractString)
+    wand = ImageMagick.MagickWand()
+    ImageMagick.readimage(wand, fpath)
+    ImageMagick.resetiterator(wand)
+    # ccall library name must be a constant — reference ImageMagick_jll.libwand directly
+    ccall((:MagickSetImageAlphaChannel, ImageMagick.ImageMagick_jll.libwand), Cint,
+          (Ptr{Cvoid}, Cint), wand, Cint(0))  # 0 = UndefinedAlphaChannel
+    w, h = ImageMagick.size(wand)
+    has_alpha = ImageMagick.getimagealphachannel(wand)
+    cs = ImageMagick.getimagecolorspace(wand)
+    depth = ImageMagick.getimagedepth(wand)
+    is_gray = startswith(cs, "Gray") || cs == "LinearGRAY"
+    channelorder = is_gray ? (has_alpha ? "IA" : "I") :
+                              (has_alpha ? "RGBA" : "RGB")
+    n_chans = (is_gray ? 1 : 3) + (has_alpha ? 1 : 0)
+    if depth <= 8
+        buf = Array{UInt8}(undef, n_chans, w, h)
+        storage_id = Cint(1)  # CharPixel
+    else
+        buf = Array{UInt16}(undef, n_chans, w, h)
+        storage_id = Cint(7)  # ShortPixel
+    end
+    ccall((:MagickExportImagePixels, ImageMagick.ImageMagick_jll.libwand), Cint,
+          (Ptr{Cvoid}, Cssize_t, Cssize_t, Csize_t, Csize_t, Ptr{UInt8}, Cint, Ptr{Cvoid}),
+          wand, 0, 0, w, h, channelorder, storage_id, pointer(buf))
+    T = depth <= 8 ? N0f8 : N0f16
+    Tcol = is_gray ? (has_alpha ? GrayA{T} : Gray{T}) :
+                     (has_alpha ? RGBA{T} : RGB{T})
+    out = Array{Tcol}(undef, h, w)
+    if is_gray && has_alpha
+        @inbounds for j in 1:w, i in 1:h
+            out[i,j] = GrayA{T}(reinterpret(T, buf[1,j,i]), reinterpret(T, buf[2,j,i]))
+        end
+    elseif is_gray
+        @inbounds for j in 1:w, i in 1:h
+            out[i,j] = Gray{T}(reinterpret(T, buf[1,j,i]))
+        end
+    elseif has_alpha
+        @inbounds for j in 1:w, i in 1:h
+            out[i,j] = RGBA{T}(reinterpret(T, buf[1,j,i]), reinterpret(T, buf[2,j,i]),
+                                reinterpret(T, buf[3,j,i]), reinterpret(T, buf[4,j,i]))
+        end
+    else
+        @inbounds for j in 1:w, i in 1:h
+            out[i,j] = RGB{T}(reinterpret(T, buf[1,j,i]), reinterpret(T, buf[2,j,i]),
+                              reinterpret(T, buf[3,j,i]))
+        end
+    end
+    return out
+end
+
 absdiff(x, y) = x > y ? x - y : y - x
 
 function imdiff(a, b)
