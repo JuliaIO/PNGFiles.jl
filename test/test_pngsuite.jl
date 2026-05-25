@@ -50,7 +50,7 @@ end
 parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
 @testset "PngSuite" begin
-    for fpath in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[!x]*[!_new][!_new_im].png"))
+    for fpath in glob("./**/$(PNG_SUITE_DIR)/[!x]*[!_new][!_new_im].png")
         case = last(splitpath(fpath))
         case_info = parse_pngsuite(case)
         C = case_info.color_type
@@ -110,7 +110,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
 
     ## TODO: Malformed pngs that should error. This throws `signal (6): Aborted` since we
     ## don't work with `png_jmpbuf` properly.
-    # for fpath in glob(joinpath("./**/$(PNG_SUITE_DIR)", "[x]*.png"))
+    # for fpath in glob("./**/$(PNG_SUITE_DIR)/[x]*.png")
     #     case = splitpath(fpath)[end]
     #     @info case
     #     @testset "$(case)" begin
@@ -119,7 +119,7 @@ parse_pngsuite(x::Symbol) = parse_pngsuite(String(x))
     # end
 
     @testset "Background chunk" begin
-        for fpath in glob(joinpath("./**/$(PNG_SUITE_DIR)", "bg*[!_new][!_new_im].png"))
+        for fpath in glob("./**/$(PNG_SUITE_DIR)/bg*[!_new][!_new_im].png")
             case = last(splitpath(fpath))
             bg_color_type = case[3]
             @testset "$(case)" begin
