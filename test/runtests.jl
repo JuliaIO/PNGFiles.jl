@@ -59,6 +59,7 @@ ensure_imagemagick()
     include("test_invalid_inputs.jl")
     include("test_images_with_background.jl")
     include("test_io.jl")
+    include("test_non_ascii_paths.jl")
     include("test_various_array_types.jl")
     include("test_dpi.jl")
 end

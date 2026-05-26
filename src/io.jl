@@ -360,12 +360,18 @@ function save(
     T,
     S<:Union{AbstractMatrix{T},AbstractArray{T,3}}
 }
+    occursin('\0', fpath) && throw(ArgumentError("fpath contains a null character"))
     @assert Z_DEFAULT_STRATEGY <= compression_strategy <= Z_FIXED
     @assert Z_NO_COMPRESSION <= compression_level <= Z_BEST_COMPRESSION
     @assert 2 <= ndims(image) <= 3
     @assert size(image, 3) <= 4
 
-    fp = ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
+    # Non-ASCII characters require the wide-string Windows API
+    fp = if Sys.iswindows()
+        ccall(:_wfopen, Ptr{Cvoid}, (Cwstring, Cwstring), fpath, "wb")
+    else
+        ccall(:fopen, Ptr{Cvoid}, (Cstring, Cstring), fpath, "wb")
+    end
     fp == C_NULL && error("Could not open $(fpath) for writing")
 
     png_ptr = create_write_struct()
