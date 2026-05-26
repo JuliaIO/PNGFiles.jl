@@ -298,9 +298,9 @@ const SupportedPaletteColor = Union{
 }
 """
     save(fpath::String, image::AbstractArray;
-         compression_level::Int=0, compression_strategy::Int=3, filters::Int=4)
+         compression_level::Int=1, compression_strategy::Int=3, filters::Int=Int(PNGFiles.PNG_FILTER_PAETH))
     save(s::IO, image::AbstractArray;
-         compression_level::Int=0, compression_strategy::Int=3, filters::Int=4)
+         compression_level::Int=1, compression_strategy::Int=3, filters::Int=Int(PNGFiles.PNG_FILTER_PAETH))
 
 Write out a julia `Array` as a PNG image.
 
@@ -333,7 +333,8 @@ Write out a julia `Array` as a PNG image.
 - `compression_strategy`: 0 (`Z_DEFAULT_STRATEGY`), 1 (`Z_FILTERED`), 2 (`Z_HUFFMAN_ONLY`),
     3 (`Z_RLE`), 4 (`Z_FIXED`)
 - `filters`: specify a type of preprocessing applied to each row which can increase its compressability.
-    Valid values are 0 (`None`), 1 (`Sub`), 2 (`Up`), 3 (`Average`), 4 (`Paeth`).
+    Valid values are `PNGFiles.PNG_FILTER_NONE`, `PNGFiles.PNG_FILTER_SUB`, `PNGFiles.PNG_FILTER_UP`,
+    `PNGFiles.PNG_FILTER_AVG`, `PNGFiles.PNG_FILTER_PAETH` (default).
 - `file_gamma`: the value governing the gamma encoding of the image. When `nothing`,
     the image stored as `sRGB`, otherwise the gamma value provided will populate a `gAMA`
     chunk of the image.
