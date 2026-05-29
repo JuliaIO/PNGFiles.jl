@@ -21,6 +21,13 @@ include("wraphelpers.jl")
 include("utils.jl")
 include("io.jl")
 
+# FileIO.jl integration. The methods are provided by the `PNGFilesFileIOExt`
+# extension (loaded when FileIO is available). These stubs make `fileio_load`
+# and `fileio_save` resolvable as `PNGFiles.fileio_load`/`PNGFiles.fileio_save`,
+# which is how FileIO locates the loader/saver registered for `format"PNG"`.
+function fileio_load end
+function fileio_save end
+
 function __init__()
     readcallback_c[] = @cfunction(_readcallback, Cvoid, (png_structp, png_bytep, png_size_t));
     readcallback_iobuffer_c[] = @cfunction(_readcallback_iobuffer, Cvoid, (png_structp, png_bytep, png_size_t));
